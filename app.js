@@ -403,10 +403,11 @@
   }
 
   function ticketCard(t) {
-    var card = el("article", "card prio-" + t.priority + " status-" + t.status);
+    var atts = t.attachments || [];
+    var card = el("article", "card" + (atts.length ? " has-shot" : "") +
+      " prio-" + t.priority + " status-" + t.status);
     card.dataset.id = t.id;
 
-    var atts = t.attachments || [];
     var cover = "";
     if (atts.length) {
       var u0 = publicUrl(atts[0].storage_path);
