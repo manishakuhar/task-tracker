@@ -137,6 +137,9 @@
     if (!assignees.length) return "";
     var done = assignees.filter(assigneePartComplete).length;
     var pending = assignees.length - done;
+    if (assignees.length === 1) return pending ? "Pending" : "Done";
+    if (!pending) return "All done";
+    if (!done) return assignees.length + " pending";
     return done + " done · " + pending + " pending";
   }
   function publicUrl(path) {
@@ -496,7 +499,6 @@
     if (t.reopen_count > 0)
       badges += '<span class="badge reopen">Reopened ' + t.reopen_count + "x</span>";
     var summary = partSummary(t);
-    if (summary) badges += '<span class="badge progress">' + esc(summary) + "</span>";
 
     var cc = commentCount(t);
     var assignees = ticketAssignees(t);
@@ -505,7 +507,6 @@
           return '<span class="assignee-pill">' +
             avatar(assigneeIdentity(a), assigneeName(a)) +
             '<span>' + esc(assigneeName(a)) + '</span>' +
-            (assigneePartComplete(a) ? ' <small class="done-tag">done</small>' : "") +
             (a.assignee_email && !a.assignee_id ? ' <small class="pending-tag">invited</small>' : "") +
           "</span>";
         }).join("")
@@ -529,11 +530,11 @@
       '<div class="card-pad">' +
         '<div class="card-top">' + badges + "</div>" +
         '<p class="card-text">' + esc(t.title) + "</p>" +
-        '<div class="card-foot">' +
-          '<div class="assignee-list">' + assigneesHtml + "</div>" +
-          '<span class="meta">' +
-            "💬 " + commentLabel(cc) + " · " + ago(t.created_at) +
-          "</span>" +
+        '<div class="assignee-list">' + assigneesHtml + "</div>" +
+        (summary ? '<div class="card-progress ' + (allPartsDone(t) ? "done" : "pending") + '">' + esc(summary) + "</div>" : "") +
+        '<div class="card-meta">' +
+          '<span>💬 ' + commentLabel(cc) + "</span>" +
+          '<span>' + ago(t.created_at) + "</span>" +
         "</div>" +
         '<div class="card-actions">' + actionBtn + "</div>" +
       "</div>";

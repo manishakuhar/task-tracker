@@ -262,18 +262,13 @@ code {
   font-size: .72rem; font-weight: 700;
   padding: 3px 9px; border-radius: 999px;
 }
-.card-pad { padding: 13px; display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-.card.has-shot .card-pad { justify-content: space-between; }
+.card-pad { padding: 13px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .card-text {
   font-size: .95rem; line-height: 1.45;
   white-space: pre-wrap; word-break: break-word;
   display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical;
   overflow: hidden;
-}
-.card-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 8px;
 }
 .assignee-list {
   display: flex;
@@ -299,8 +294,24 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card-foot .meta { font-size: .8rem; color: var(--muted); display: flex; gap: 8px; }
-.card-actions { display: flex; margin-top: auto; }
+.card-progress {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: .76rem;
+  font-weight: 800;
+}
+.card-progress.pending { background: #fff7ed; color: #9a3412; }
+.card-progress.done { background: #e3f6e8; color: var(--done); }
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  color: var(--muted);
+  font-size: .8rem;
+}
+.card-actions { display: flex; min-height: 31px; align-items: flex-end; }
 
 /* ============ Badges ============ */
 .badge {
@@ -314,7 +325,6 @@ code {
 .badge.prio-urgent { background: #fde3e3; color: var(--urgent); }
 .badge.done   { background: #e3f6e8; color: var(--done); }
 .badge.reopen { background: #f3e8ff; color: #7c3aed; }
-.badge.progress { background: #fff7ed; color: #9a3412; }
 
 /* ============ Assignee / avatar ============ */
 .assignee { display: flex; align-items: center; gap: 6px; font-size: .83rem; }
@@ -322,13 +332,6 @@ code {
   color: var(--muted);
   font-size: .72rem;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .2px;
-}
-.done-tag {
-  color: var(--done);
-  font-size: .72rem;
-  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: .2px;
 }
@@ -565,7 +568,7 @@ code {
   }
   .card-cover { min-height: 210px; }
   .card-text { -webkit-line-clamp: 6; }
-  .card-foot { align-items: flex-start; flex-direction: column; }
+  .card-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .field-row { flex-direction: column; gap: 0; }
   .meta-grid { grid-template-columns: 1fr; }
 }
