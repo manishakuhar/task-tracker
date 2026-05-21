@@ -216,6 +216,13 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
+  -- Supabase SQL Editor, service-role jobs, and trigger-driven maintenance
+  -- do not have an auth.uid(). Let those database-level operations run.
+  -- Browser users are still controlled by RLS plus the checks below.
+  if auth.uid() is null then
+    return new;
+  end if;
+
   if new.status = 'done'
      and exists (
        select 1
