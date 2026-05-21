@@ -302,6 +302,7 @@ code {
   padding: 14px 20px; border-top: 1px solid var(--border);
   display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
 }
+.modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .field-row { display: flex; gap: 12px; }
 .field-row .field { flex: 1; }
 .invite-help { font-size: .88rem; }

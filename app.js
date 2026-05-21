@@ -899,9 +899,12 @@
       "</div>" +
       '<div class="modal-foot">' +
         '<button class="btn btn-danger" id="d-delete">Delete ticket</button>' +
-        (t.status === "open"
-          ? '<button class="btn btn-primary" id="d-status">Mark done</button>'
-          : '<button class="btn btn-primary" id="d-status">Reopen ticket</button>') +
+        '<div class="modal-actions">' +
+          '<button class="btn btn-ghost" id="d-save" disabled>Save changes</button>' +
+          (t.status === "open"
+            ? '<button class="btn btn-primary" id="d-status">Mark done</button>'
+            : '<button class="btn btn-primary" id="d-status">Reopen ticket</button>') +
+        "</div>" +
       "</div>";
 
     var uploader = createUploader(function (files) {
@@ -934,17 +937,43 @@
       if (img) openLightbox(img.dataset.full);
     });
 
-    // edit task text (save on blur)
-    modal.querySelector("#d-text").addEventListener("blur", function () {
-      var v = this.value.trim();
-      if (v && v !== t.title) updateTicket(t.id, { title: v });
-    });
-    // priority + assignee (save on change)
-    modal.querySelector("#d-priority").addEventListener("change", function () {
-      updateTicket(t.id, { priority: this.value });
-    });
-    modal.querySelector("#d-assignee").addEventListener("change", function () {
-      updateTicket(t.id, selectedAssigneePatch(this.value));
+    var saveBtn = modal.querySelector("#d-save");
+    function currentEditPatch() {
+      return {
+        title: modal.querySelector("#d-text").value.trim(),
+        priority: modal.querySelector("#d-priority").value,
+        ...selectedAssigneePatch(modal.querySelector("#d-assignee").value)
+      };
+    }
+    function editsChanged() {
+      var patch = currentEditPatch();
+      return patch.title !== t.title ||
+        patch.priority !== t.priority ||
+        patch.assignee_id !== (t.assignee_id || null) ||
+        patch.assignee_email !== (t.assignee_email || null) ||
+        patch.assignee_name !== (t.assignee_name || null);
+    }
+    function markDirty() {
+      saveBtn.disabled = !editsChanged();
+    }
+
+    modal.querySelector("#d-text").addEventListener("input", markDirty);
+    modal.querySelector("#d-priority").addEventListener("change", markDirty);
+    modal.querySelector("#d-assignee").addEventListener("change", markDirty);
+
+    saveBtn.addEventListener("click", async function () {
+      var patch = currentEditPatch();
+      if (!patch.title) { toast("Task text cannot be empty"); return; }
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving...";
+      var ok = await updateTicket(t.id, patch);
+      if (ok) {
+        toast("Changes saved");
+        closeModal();
+      } else {
+        saveBtn.disabled = false;
+        saveBtn.textContent = "Save changes";
+      }
     });
 
     // status button
