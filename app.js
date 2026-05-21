@@ -647,6 +647,93 @@
     await refresh();
   }
 
+  async function setAssigneePartStatus(t, assignee, status) {
+    if (!canEditTicket(t)) { toast("Only the ticket creator can update someone else's part"); return; }
+
+    var body = prompt(status === "done"
+      ? "Add a comment before marking this person's work done:"
+      : "Add a comment before reopening this person's work:");
+    if (body == null) return;
+    body = body.trim();
+    if (!body) { toast("Comment is required"); return; }
+
+    var r = await sb.from("ticket_assignees")
+      .update({
+        part_status: status,
+        completed_at: status === "done" ? new Date().toISOString() : null
+      })
+      .eq("id", assignee.id);
+    if (r.error) { toast(r.error.message); return; }
+
+    var name = assigneeName(assignee);
+    var comment = await sb.from("comments").insert({
+      ticket_id: t.id,
+      author_id: state.me.id,
+      body: (status === "done" ? "Marked " : "Reopened ") + name + "'s work: " + body
+    });
+    if (comment.error) { toast(comment.error.message); return; }
+
+    if (status === "open" && t.status === "done") {
+      await sb.from("tickets")
+        .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
+        .eq("id", t.id);
+    }
+
+    toast(status === "done" ? "Part marked done" : "Part reopened");
+    await refresh();
+  }
+
+  function askReopenAssignees(t) {
+    var doneAssignees = ticketAssignees(t).filter(assigneePartComplete);
+    if (!doneAssignees.length) {
+      reopen(t);
+      return;
+    }
+    var choices = doneAssignees.map(function (a, idx) {
+      return (idx + 1) + ". " + assigneeName(a);
+    }).join("\n");
+    var answer = prompt(
+      "Reopen whose work?\nType all, or type numbers separated by comma.\n\n" + choices,
+      "all"
+    );
+    if (answer == null) return;
+    answer = answer.trim().toLowerCase();
+    var selected = [];
+    if (answer === "all") {
+      selected = doneAssignees;
+    } else {
+      selected = answer.split(",")
+        .map(function (x) { return parseInt(x.trim(), 10) - 1; })
+        .filter(function (idx) { return idx >= 0 && idx < doneAssignees.length; })
+        .map(function (idx) { return doneAssignees[idx]; });
+    }
+    if (!selected.length) { toast("No assignee selected"); return; }
+
+    var body = prompt("Add a comment for reopening selected work:");
+    if (body == null) return;
+    body = body.trim();
+    if (!body) { toast("Comment is required"); return; }
+
+    Promise.all(selected.map(function (a) {
+      return sb.from("ticket_assignees")
+        .update({ part_status: "open", completed_at: null })
+        .eq("id", a.id);
+    })).then(async function (results) {
+      var failed = results.find(function (r) { return r.error; });
+      if (failed) { toast(failed.error.message); return; }
+      await sb.from("tickets")
+        .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
+        .eq("id", t.id);
+      await sb.from("comments").insert({
+        ticket_id: t.id,
+        author_id: state.me.id,
+        body: "Reopened work for " + selected.map(assigneeName).join(", ") + ": " + body
+      });
+      toast("Selected work reopened");
+      await refresh();
+    });
+  }
+
   async function updateTicket(id, patch) {
     var r = await sb.from("tickets").update(patch).eq("id", id);
     if (r.error) { toast(r.error.message); return false; }
@@ -1133,9 +1220,14 @@
           return '<div class="part-row">' +
             '<span class="assignee-pill">' + avatar(assigneeIdentity(a), assigneeName(a)) +
               '<span>' + esc(assigneeName(a)) + '</span></span>' +
-            '<span class="part-status ' + (assigneePartComplete(a) ? "done" : "open") + '">' +
-              (assigneePartComplete(a) ? "Done" : "Pending") +
-            "</span></div>";
+            '<div class="part-row-actions">' +
+              '<span class="part-status ' + (assigneePartComplete(a) ? "done" : "open") + '">' +
+                (assigneePartComplete(a) ? "Done" : "Pending") +
+              "</span>" +
+              (canEdit && assigneePartComplete(a)
+                ? '<button class="link-btn part-reopen" data-reopen-assignee="' + a.id + '">Reopen</button>'
+                : "") +
+            "</div></div>";
         }).join("") + "</div>"
       : '<p class="muted" style="font-size:.88rem">No assignees yet.</p>';
 
@@ -1214,6 +1306,15 @@
       if (img) openLightbox(img.dataset.full);
     });
 
+    modal.querySelector(".part-list")?.addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-reopen-assignee]");
+      if (!btn) return;
+      var assignee = ticketAssignees(t).find(function (a) {
+        return a.id === btn.dataset.reopenAssignee;
+      });
+      if (assignee) setAssigneePartStatus(t, assignee, "open");
+    });
+
     var saveBtn = modal.querySelector("#d-save");
     function currentEditPatch() {
       var assignees = selectedAssigneeRecords(modal.querySelector("#d-assignee"));
@@ -1282,6 +1383,7 @@
           }
           setStatus(t, "done");
         }
+        else if (canEditTicket(t) && ticketAssignees(t).length) askReopenAssignees(t);
         else reopen(t);
       });
     }

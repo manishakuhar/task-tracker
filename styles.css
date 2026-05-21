@@ -227,9 +227,10 @@ code {
   overflow: hidden;
   display: flex; flex-direction: column;
   transition: box-shadow .12s, transform .06s;
+  min-height: 260px;
 }
 .card.has-shot {
-  min-height: 230px;
+  height: 260px;
   display: grid;
   grid-template-columns: minmax(128px, 38%) 1fr;
 }
@@ -244,7 +245,7 @@ code {
   position: relative;
   background: #111827;
   display: flex; align-items: center; justify-content: center;
-  min-height: 230px;
+  min-height: 260px;
   height: 100%;
   overflow: hidden;
 }
@@ -265,9 +266,10 @@ code {
 .card-pad {
   padding: 13px;
   display: grid;
-  grid-template-rows: auto minmax(58px, 1fr) auto auto auto;
+  grid-template-rows: auto minmax(64px, 1fr) auto auto 36px;
   gap: 9px;
   min-width: 0;
+  height: 100%;
 }
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .card-text {
@@ -420,6 +422,8 @@ code {
   padding: 7px 9px;
   background: #fafbfc;
 }
+.part-row-actions { display: flex; align-items: center; gap: 8px; }
+.part-reopen { font-size: .78rem; }
 .part-status {
   flex-shrink: 0;
   border-radius: 999px;
@@ -581,10 +585,10 @@ code {
   .toolbar, .stats, .ticket-grid { padding-left: 14px; padding-right: 14px; }
   .ticket-grid { grid-template-columns: 1fr; }
   .card.has-shot {
-    min-height: 210px;
+    height: 240px;
     grid-template-columns: minmax(112px, 42%) 1fr;
   }
-  .card-cover { min-height: 210px; }
+  .card-cover { min-height: 240px; }
   .card-text { -webkit-line-clamp: 6; }
   .card-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .field-row { flex-direction: column; gap: 0; }
