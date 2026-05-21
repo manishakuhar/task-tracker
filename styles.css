@@ -227,12 +227,11 @@ code {
   overflow: hidden;
   display: flex; flex-direction: column;
   transition: box-shadow .12s, transform .06s;
-  min-height: 260px;
+  height: 390px;
 }
 .card.has-shot {
-  height: 260px;
   display: grid;
-  grid-template-columns: minmax(128px, 38%) 1fr;
+  grid-template-columns: minmax(150px, 40%) 1fr;
 }
 .card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
 .card.prio-low    { border-left-color: var(--low); }
@@ -245,7 +244,7 @@ code {
   position: relative;
   background: #111827;
   display: flex; align-items: center; justify-content: center;
-  min-height: 260px;
+  min-height: 0;
   height: 100%;
   overflow: hidden;
 }
@@ -266,10 +265,11 @@ code {
 .card-pad {
   padding: 13px;
   display: grid;
-  grid-template-rows: auto minmax(64px, 1fr) auto auto 36px;
+  grid-template-rows: auto minmax(0, 1fr) minmax(30px, auto) auto minmax(22px, auto) 38px;
   gap: 9px;
   min-width: 0;
   height: 100%;
+  overflow: hidden;
 }
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .card-text {
@@ -283,6 +283,8 @@ code {
   flex-wrap: wrap;
   gap: 5px;
   min-width: 0;
+  max-height: 65px;
+  overflow: hidden;
 }
 .assignee-pill {
   display: inline-flex;
@@ -314,16 +316,17 @@ code {
 .card-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
   margin-top: auto;
   color: var(--muted);
   font-size: .8rem;
+  min-height: 22px;
 }
 .card-actions {
   display: flex;
-  min-height: 36px;
+  min-height: 38px;
   align-items: flex-end;
-  padding-top: 2px;
 }
 .card-actions .btn {
   width: 100%;
@@ -584,11 +587,10 @@ code {
   .topbar-right .btn { padding: 7px 9px; font-size: .85rem; }
   .toolbar, .stats, .ticket-grid { padding-left: 14px; padding-right: 14px; }
   .ticket-grid { grid-template-columns: 1fr; }
+  .card { height: 370px; }
   .card.has-shot {
-    height: 240px;
-    grid-template-columns: minmax(112px, 42%) 1fr;
+    grid-template-columns: minmax(126px, 42%) 1fr;
   }
-  .card-cover { min-height: 240px; }
   .card-text { -webkit-line-clamp: 6; }
   .card-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
   .field-row { flex-direction: column; gap: 0; }
