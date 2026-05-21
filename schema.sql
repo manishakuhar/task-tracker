@@ -56,8 +56,23 @@ create table if not exists public.ticket_assignees (
   assignee_id    uuid references public.profiles(id) on delete set null,
   assignee_email text,
   assignee_name  text,
+  part_status    text not null default 'open'
+                 check (part_status in ('open','done')),
+  completed_at   timestamptz,
   created_at     timestamptz not null default now()
 );
+
+alter table public.ticket_assignees
+  add column if not exists part_status text not null default 'open',
+  add column if not exists completed_at timestamptz;
+
+do $$
+begin
+  alter table public.ticket_assignees
+    add constraint ticket_assignees_part_status_check
+    check (part_status in ('open','done'));
+exception when duplicate_object then null;
+end $$;
 
 create unique index if not exists ticket_assignees_ticket_user_idx
   on public.ticket_assignees (ticket_id, assignee_id)
@@ -68,8 +83,10 @@ create unique index if not exists ticket_assignees_ticket_email_idx
   where assignee_email is not null;
 
 -- Backfill older single-assignee tickets into the new multi-assignee table.
-insert into public.ticket_assignees (ticket_id, assignee_id, assignee_email, assignee_name)
-select t.id, t.assignee_id, t.assignee_email, t.assignee_name
+insert into public.ticket_assignees (ticket_id, assignee_id, assignee_email, assignee_name, part_status, completed_at)
+select t.id, t.assignee_id, t.assignee_email, t.assignee_name,
+       case when t.status = 'done' then 'done' else 'open' end,
+       case when t.status = 'done' then t.updated_at else null end
 from public.tickets t
 where (t.assignee_id is not null or t.assignee_email is not null)
   and not exists (
@@ -178,6 +195,21 @@ as $$
   );
 $$;
 
+create or replace function public.can_update_ticket_assignee(assignee_row uuid)
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.ticket_assignees ta
+    join public.tickets t on t.id = ta.ticket_id
+    where ta.id = assignee_row
+      and (t.created_by = auth.uid() or ta.assignee_id = auth.uid())
+  );
+$$;
+
 create or replace function public.protect_ticket_update()
 returns trigger
 language plpgsql
@@ -207,6 +239,33 @@ drop trigger if exists tickets_protect_update on public.tickets;
 create trigger tickets_protect_update
   before update on public.tickets
   for each row execute function public.protect_ticket_update();
+
+create or replace function public.protect_ticket_assignee_update()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if public.can_assign_ticket(old.ticket_id) then
+    return new;
+  end if;
+
+  if old.assignee_id = auth.uid()
+     and new.ticket_id = old.ticket_id
+     and new.assignee_id is not distinct from old.assignee_id
+     and coalesce(new.assignee_email, '') = coalesce(old.assignee_email, '')
+     and coalesce(new.assignee_name, '') = coalesce(old.assignee_name, '') then
+    return new;
+  end if;
+
+  raise exception 'Only the ticket creator can edit assignees';
+end;
+$$;
+
+drop trigger if exists ticket_assignees_protect_update on public.ticket_assignees;
+create trigger ticket_assignees_protect_update
+  before update on public.ticket_assignees
+  for each row execute function public.protect_ticket_assignee_update();
 
 -- When an invited person signs in for the first time, attach all tickets
 -- previously assigned to their email address to their real profile.
@@ -292,6 +351,11 @@ create policy "ticket assignees read" on public.ticket_assignees for select to a
 create policy "ticket assignees insert creator"
   on public.ticket_assignees for insert to authenticated
   with check (public.can_assign_ticket(ticket_id));
+drop policy if exists "ticket assignees update creator or self" on public.ticket_assignees;
+create policy "ticket assignees update creator or self"
+  on public.ticket_assignees for update to authenticated
+  using (public.can_update_ticket_assignee(id))
+  with check (public.can_update_ticket_assignee(id));
 create policy "ticket assignees delete creator"
   on public.ticket_assignees for delete to authenticated
   using (public.can_assign_ticket(ticket_id));

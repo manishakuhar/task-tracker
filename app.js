@@ -119,6 +119,19 @@
   function canActOnTicket(t) {
     return canEditTicket(t) || isMine(t);
   }
+  function myAssigneeRow(t) {
+    return ticketAssignees(t).find(function (a) {
+      return a.assignee_id === state.me.id ||
+        (!!a.assignee_email && normalizeEmail(a.assignee_email) === normalizeEmail(state.me.email));
+    });
+  }
+  function assigneePartComplete(a) {
+    return a.part_status === "done";
+  }
+  function allPartsDone(t) {
+    var assignees = ticketAssignees(t);
+    return assignees.length > 0 && assignees.every(assigneePartComplete);
+  }
   function publicUrl(path) {
     return sb.storage.from("screenshots").getPublicUrl(path).data.publicUrl;
   }
@@ -345,7 +358,7 @@
     if (!state.tickets.length) return;
     var ids = state.tickets.map(function (t) { return t.id; });
     var r = await sb.from("ticket_assignees")
-      .select("id,ticket_id,assignee_id,assignee_email,assignee_name")
+      .select("id,ticket_id,assignee_id,assignee_email,assignee_name,part_status,completed_at")
       .in("ticket_id", ids);
     if (r.error) {
       console.warn("Could not load multi-assignees; using legacy assignee fields.", r.error);
@@ -364,6 +377,9 @@
 
   function commentCount(t) {
     return (t.comments && t.comments[0] && t.comments[0].count) || 0;
+  }
+  function commentLabel(count) {
+    return count + " " + (count === 1 ? "comment" : "comments");
   }
 
   /* ============================================================
@@ -480,15 +496,22 @@
           return '<span class="assignee-pill">' +
             avatar(assigneeIdentity(a), assigneeName(a)) +
             '<span>' + esc(assigneeName(a)) + '</span>' +
+            (assigneePartComplete(a) ? ' <small class="done-tag">done</small>' : "") +
             (a.assignee_email && !a.assignee_id ? ' <small class="pending-tag">invited</small>' : "") +
           "</span>";
         }).join("")
       : '<span class="assignee-pill">' + avatar("", "Unassigned") + "<span>Unassigned</span></span>";
-    var actionBtn = canActOnTicket(t)
-      ? (t.status === "open"
-          ? '<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>'
-          : '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>')
-      : "";
+    var myPart = myAssigneeRow(t);
+    var actionBtn = "";
+    if (myPart && t.status === "open") {
+      actionBtn = assigneePartComplete(myPart)
+        ? '<button class="btn btn-ghost btn-sm" data-act="part-open">Reopen my part</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="part-done">Mark my part done</button>';
+    } else if (canEditTicket(t)) {
+      actionBtn = t.status === "open"
+        ? '<button class="btn btn-ghost btn-sm" data-act="done">Mark whole ticket done</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen ticket</button>';
+    }
 
     card.innerHTML =
       cover +
@@ -498,7 +521,7 @@
         '<div class="card-foot">' +
           '<div class="assignee-list">' + assigneesHtml + "</div>" +
           '<span class="meta">' +
-            (cc ? "💬 " + cc + " " : "") + ago(t.created_at) +
+            "💬 " + commentLabel(cc) + " · " + ago(t.created_at) +
           "</span>" +
         "</div>" +
         '<div class="card-actions">' + actionBtn + "</div>" +
@@ -510,7 +533,9 @@
       var act = e.target.closest("[data-act]");
       if (act) {
         e.stopPropagation();
-        if (act.dataset.act === "done") setStatus(t, "done");
+        if (act.dataset.act === "part-done") setMyPartStatus(t, "done");
+        else if (act.dataset.act === "part-open") setMyPartStatus(t, "open");
+        else if (act.dataset.act === "done") setStatus(t, "done");
         else reopen(t);
         return;
       }
@@ -559,6 +584,54 @@
     });
     if (comment.error) { toast(comment.error.message); return; }
     toast("Ticket reopened");
+    await refresh();
+  }
+
+  async function setMyPartStatus(t, status) {
+    var mine = myAssigneeRow(t);
+    if (!mine) { toast("This ticket is not assigned to you"); return; }
+
+    var body = prompt(status === "done"
+      ? "Add a comment for your completed part:"
+      : "Add a comment before reopening your part:");
+    if (body == null) return;
+    body = body.trim();
+    if (!body) { toast("Comment is required"); return; }
+
+    var r = await sb.from("ticket_assignees")
+      .update({
+        part_status: status,
+        completed_at: status === "done" ? new Date().toISOString() : null
+      })
+      .eq("id", mine.id);
+    if (r.error) { toast(r.error.message); return; }
+
+    var comment = await sb.from("comments").insert({
+      ticket_id: t.id,
+      author_id: state.me.id,
+      body: (status === "done" ? "My part is done: " : "Reopened my part: ") + body
+    });
+    if (comment.error) { toast(comment.error.message); return; }
+
+    var updatedAssignees = ticketAssignees(t).map(function (a) {
+      return a.id === mine.id
+        ? { ...a, part_status: status, completed_at: status === "done" ? new Date().toISOString() : null }
+        : a;
+    });
+    if (status === "done" && updatedAssignees.length && updatedAssignees.every(assigneePartComplete)) {
+      await sb.from("tickets").update({ status: "done" }).eq("id", t.id);
+      await sb.from("comments").insert({
+        ticket_id: t.id,
+        author_id: state.me.id,
+        body: "All assigned parts are done. Ticket marked done."
+      });
+    } else if (status === "open" && t.status === "done") {
+      await sb.from("tickets")
+        .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
+        .eq("id", t.id);
+    }
+
+    toast(status === "done" ? "Your part is done" : "Your part was reopened");
     await refresh();
   }
 
@@ -830,7 +903,9 @@
         ticket_id: ticketId,
         assignee_id: a.assignee_id,
         assignee_email: a.assignee_email,
-        assignee_name: a.assignee_name
+        assignee_name: a.assignee_name,
+        part_status: a.part_status || "open",
+        completed_at: a.completed_at || null
       };
     });
     var r = await sb.from("ticket_assignees").insert(rows);
@@ -1028,6 +1103,16 @@
           '<div class="comment-body">' + esc(c.body) + "</div>" +
         "</div></div>";
     }).join("") || '<p class="muted" style="font-size:.88rem">No comments yet.</p>';
+    var assigneeProgressHtml = ticketAssignees(t).length
+      ? '<div class="part-list">' + ticketAssignees(t).map(function (a) {
+          return '<div class="part-row">' +
+            '<span class="assignee-pill">' + avatar(assigneeIdentity(a), assigneeName(a)) +
+              '<span>' + esc(assigneeName(a)) + '</span></span>' +
+            '<span class="part-status ' + (assigneePartComplete(a) ? "done" : "open") + '">' +
+              (assigneePartComplete(a) ? "Done" : "Open") +
+            "</span></div>";
+        }).join("") + "</div>"
+      : '<p class="muted" style="font-size:.88rem">No assignees yet.</p>';
 
     modal.innerHTML =
       '<div class="modal-head"><h2>Ticket</h2>' +
@@ -1048,7 +1133,9 @@
             '<div class="meta-static">' + new Date(t.created_at).toLocaleString() +
             "</div></div>" +
         "</div>" +
-	        '<div class="section-label">Screenshots</div>' +
+        '<div class="section-label">Assignee progress</div>' +
+        assigneeProgressHtml +
+        '<div class="section-label">Screenshots</div>' +
 	        shots +
 	        (canEdit ? '<div id="d-uploader" style="margin-top:8px"></div>' : "") +
         '<div class="section-label">Comments</div>' +
@@ -1160,7 +1247,13 @@
     var statusBtn = modal.querySelector("#d-status");
     if (statusBtn) {
       statusBtn.addEventListener("click", function () {
-        if (t.status === "open") setStatus(t, "done");
+        if (t.status === "open") {
+          if (ticketAssignees(t).length && !allPartsDone(t)) {
+            toast("All assignee parts must be done before closing the ticket");
+            return;
+          }
+          setStatus(t, "done");
+        }
         else reopen(t);
       });
     }
