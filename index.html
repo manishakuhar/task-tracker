@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="assets/task-tracker-logo.svg" />
+</head>
+<body>
+
+  <!-- ============ Login / Sign up ============ -->
+  <section id="auth-view" class="auth-view" hidden>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="logo"><img src="assets/task-tracker-logo.svg" alt="" /></div>
+        <h1>Task Tracker</h1>
+        <p class="muted">Raise tickets, assign them, get things done.</p>
+      </div>
+      <div id="auth-error" class="form-error" hidden></div>
+      <div id="auth-note" class="form-note" hidden></div>
+      <form id="auth-form" autocomplete="on">
+        <label class="field" id="name-field" hidden>
+          <span>Your name</span>
+          <input type="text" id="auth-name" autocomplete="name" placeholder="Jane Doe" />
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input type="email" id="auth-email" required autocomplete="email" placeholder="you@company.com" />
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" id="auth-password" required minlength="6" placeholder="At least 6 characters" />
+        </label>
+        <button type="submit" id="auth-submit" class="btn btn-primary btn-block">Sign in</button>
+        <button type="button" id="magic-link-btn" class="btn btn-ghost btn-block auth-link-btn">Email me a sign-in link</button>
+      </form>
+      <p class="auth-toggle">
+        <span id="auth-toggle-text">New to the team?</span>
+        <button type="button" id="auth-toggle-btn" class="link-btn">Create an account</button>
+      </p>
+    </div>
+  </section>
+
+  <!-- ============ Setup needed (config.js not filled in) ============ -->
+  <section id="setup-view" class="auth-view" hidden>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="logo"><img src="assets/task-tracker-logo.svg" alt="" /></div>
+        <h1>Almost there</h1>
+        <p class="muted">One quick setup step before the app can run.</p>
+      </div>
+      <div class="setup-steps">
+        <p>Open <code>config.js</code> and paste your Supabase <strong>Project URL</strong> and <strong>anon key</strong> into it.</p>
+        <p>Full instructions are in <code>README.md</code>. Reload this page once config.js is saved.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ Main app ============ -->
+  <section id="app-view" hidden>
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo"><img src="assets/task-tracker-logo.svg" alt="" /></div>
+        <strong>Task Tracker</strong>
+      </div>
+      <div class="topbar-right">
+        <span id="current-user" class="muted"></span>
+        <button id="invite-person-btn" class="btn btn-ghost">Invite person</button>
+        <button id="new-ticket-btn" class="btn btn-primary">+ New ticket</button>
+        <button id="signout-btn" class="btn btn-ghost">Sign out</button>
+      </div>
+    </header>
+
+    <div class="toolbar">
+      <input type="search" id="search-input" class="search" placeholder="Search tickets..." />
+      <div class="filters">
+        <button id="my-tickets-btn" class="chip" type="button">My tickets</button>
+        <select id="filter-assignee" class="select" aria-label="Filter by assignee"></select>
+        <select id="filter-status" class="select" aria-label="Filter by status">
+          <option value="open">Open</option>
+          <option value="done">Done</option>
+          <option value="all">All statuses</option>
+        </select>
+        <select id="filter-priority" class="select" aria-label="Filter by priority">
+          <option value="all">All priorities</option>
+          <option value="urgent">Urgent</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="stats" class="stats"></div>
+    <main id="ticket-grid" class="ticket-grid"></main>
+    <div id="empty-state" class="empty-state" hidden></div>
+  </section>
+
+  <!-- modal + lightbox layers -->
+  <div id="modal-root"></div>
+  <div id="lightbox" class="lightbox" hidden><img alt="screenshot" /></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
