@@ -11,13 +11,13 @@ Everyone signed in sees the same live board.
 
 - Sign in with email and password, or with an emailed sign-in link
 - Invite people by email before they have an account
-- Raise a ticket in seconds: paste a screenshot, write what needs doing, pick an assignee or invited person, and set priority
+- Raise a ticket in seconds: paste a screenshot, write what needs doing, pick one or more assignees, and set priority
 - Tickets assigned to an invited email automatically move to that person's account after they sign in
 - The board shows each ticket as a card with the screenshot and text right on it, no clicking needed to see what it is
-- Attach screenshots by paste (Ctrl/Cmd+V), drag and drop, or click to choose
+- Ticket creators can attach screenshots by paste (Ctrl/Cmd+V), drag and drop, or click to choose
 - Filter the board by assignee (one click on "My tickets"), status, and priority, plus search
-- Comment on a ticket
-- Mark a ticket done, and reopen it later (reopen count is shown)
+- Ticket creators and assignees can comment on a ticket
+- Ticket creators and assignees can mark a ticket done or reopen it, with a required comment
 - Live updates: when one person changes something, every open board refreshes
 
 ## One-time setup (about 10 minutes)
@@ -106,9 +106,9 @@ Whenever you edit the app and push to GitHub, Vercel deploys the update.
   it regularly never hits this. If it does pause, open the Supabase dashboard
   and click restore.
 - The **anon key** in `config.js` is meant to be public. Your data is protected
-  by database rules: only signed-in users can read or write anything.
-- Any signed-in teammate can edit, complete, reopen, or delete any ticket.
-  That is intentional for a small, trusted team.
+  by database rules: only signed-in users can read tickets.
+- Only the ticket creator can edit task details, assignees, screenshots, or
+  delete the ticket. The creator and assignees can comment and update status.
 - Screenshots are stored in a public Storage bucket, so anyone with a direct
   image link can view that image. Do not attach anything sensitive.
 - To stop new people from signing up once your team has joined, go to

@@ -245,6 +245,30 @@ code {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px;
 }
+.assignee-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+}
+.assignee-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  padding: 2px 7px 2px 2px;
+  font-size: .78rem;
+}
+.assignee-pill span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card-foot .meta { font-size: .8rem; color: var(--muted); display: flex; gap: 8px; }
 .card-actions { display: flex; margin-top: auto; }
 
@@ -317,7 +341,14 @@ code {
 .modal-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .field-row { display: flex; gap: 12px; }
 .field-row .field { flex: 1; }
+.field-help {
+  display: block;
+  color: var(--muted);
+  font-size: .76rem;
+  margin-top: 4px;
+}
 .invite-help { font-size: .88rem; }
+.view-only-note { font-size: .85rem; margin-top: 10px; }
 
 /* full-width styled textarea inside modals */
 .box {

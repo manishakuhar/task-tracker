@@ -82,23 +82,42 @@
     var e = normalizeEmail(email);
     return state.invitations.find(function (i) { return normalizeEmail(i.email) === e; });
   }
-  function assigneeKey(t) {
-    if (t.assignee_id) return t.assignee_id;
-    if (t.assignee_email) return "email:" + normalizeEmail(t.assignee_email);
+  function legacyAssignees(t) {
+    if (!t.assignee_id && !t.assignee_email) return [];
+    return [{
+      assignee_id: t.assignee_id || null,
+      assignee_email: t.assignee_email || null,
+      assignee_name: t.assignee_name || null
+    }];
+  }
+  function ticketAssignees(t) {
+    return t.assignees && t.assignees.length ? t.assignees : legacyAssignees(t);
+  }
+  function assigneeKey(a) {
+    if (a.assignee_id) return a.assignee_id;
+    if (a.assignee_email) return "email:" + normalizeEmail(a.assignee_email);
     return "";
   }
-  function assigneeName(t) {
-    if (t.assignee_id) return nameOf(t.assignee_id);
-    if (t.assignee_name) return t.assignee_name;
-    if (t.assignee_email) return t.assignee_email;
+  function assigneeName(a) {
+    if (a.assignee_id) return nameOf(a.assignee_id);
+    if (a.assignee_name) return a.assignee_name;
+    if (a.assignee_email) return a.assignee_email;
     return "Unassigned";
   }
-  function assigneeIdentity(t) {
-    return t.assignee_id || t.assignee_email || "";
+  function assigneeIdentity(a) {
+    return a.assignee_id || a.assignee_email || "";
   }
   function isMine(t) {
-    return t.assignee_id === state.me.id ||
-      (!!t.assignee_email && normalizeEmail(t.assignee_email) === normalizeEmail(state.me.email));
+    return ticketAssignees(t).some(function (a) {
+      return a.assignee_id === state.me.id ||
+        (!!a.assignee_email && normalizeEmail(a.assignee_email) === normalizeEmail(state.me.email));
+    });
+  }
+  function canEditTicket(t) {
+    return t.created_by === state.me.id;
+  }
+  function canActOnTicket(t) {
+    return canEditTicket(t) || isMine(t);
   }
   function publicUrl(path) {
     return sb.storage.from("screenshots").getPublicUrl(path).data.publicUrl;
@@ -278,6 +297,14 @@
       })
       .eq("assignee_email", email)
       .or("assignee_id.is.null,assignee_id.eq." + state.me.id);
+    await sb.from("ticket_assignees")
+      .update({
+        assignee_id: state.me.id,
+        assignee_email: email,
+        assignee_name: state.me.full_name
+      })
+      .eq("assignee_email", email)
+      .or("assignee_id.is.null,assignee_id.eq." + state.me.id);
     await sb.from("invitations")
       .update({ status: "accepted", full_name: state.me.full_name })
       .eq("email", email);
@@ -311,6 +338,28 @@
     var r = await sb.from("tickets").select(cols).order("created_at", { ascending: false });
     if (r.error) { console.error(r.error); toast("Could not load tickets"); return; }
     state.tickets = r.data || [];
+    await loadTicketAssignees();
+  }
+
+  async function loadTicketAssignees() {
+    if (!state.tickets.length) return;
+    var ids = state.tickets.map(function (t) { return t.id; });
+    var r = await sb.from("ticket_assignees")
+      .select("id,ticket_id,assignee_id,assignee_email,assignee_name")
+      .in("ticket_id", ids);
+    if (r.error) {
+      console.warn("Could not load multi-assignees; using legacy assignee fields.", r.error);
+      state.tickets.forEach(function (t) { t.assignees = legacyAssignees(t); });
+      return;
+    }
+    var grouped = {};
+    (r.data || []).forEach(function (a) {
+      if (!grouped[a.ticket_id]) grouped[a.ticket_id] = [];
+      grouped[a.ticket_id].push(a);
+    });
+    state.tickets.forEach(function (t) {
+      t.assignees = grouped[t.id] || legacyAssignees(t);
+    });
   }
 
   function commentCount(t) {
@@ -326,9 +375,9 @@
       if (f.status !== "all" && t.status !== f.status) return false;
       if (f.priority !== "all" && t.priority !== f.priority) return false;
       if (f.assignee === "unassigned") {
-        if (t.assignee_id || t.assignee_email) return false;
+        if (ticketAssignees(t).length) return false;
       } else if (f.assignee !== "all") {
-        if (assigneeKey(t) !== f.assignee) return false;
+        if (!ticketAssignees(t).some(function (a) { return assigneeKey(a) === f.assignee; })) return false;
       }
       if (q && (t.title + " " + (t.description || "")).toLowerCase().indexOf(q) === -1)
         return false;
@@ -425,9 +474,21 @@
       badges += '<span class="badge reopen">Reopened ' + t.reopen_count + "x</span>";
 
     var cc = commentCount(t);
-    var actionBtn = t.status === "open"
-      ? '<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>'
-      : '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>';
+    var assignees = ticketAssignees(t);
+    var assigneesHtml = assignees.length
+      ? assignees.map(function (a) {
+          return '<span class="assignee-pill">' +
+            avatar(assigneeIdentity(a), assigneeName(a)) +
+            '<span>' + esc(assigneeName(a)) + '</span>' +
+            (a.assignee_email && !a.assignee_id ? ' <small class="pending-tag">invited</small>' : "") +
+          "</span>";
+        }).join("")
+      : '<span class="assignee-pill">' + avatar("", "Unassigned") + "<span>Unassigned</span></span>";
+    var actionBtn = canActOnTicket(t)
+      ? (t.status === "open"
+          ? '<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>'
+          : '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>')
+      : "";
 
     card.innerHTML =
       cover +
@@ -435,8 +496,7 @@
         '<div class="card-top">' + badges + "</div>" +
         '<p class="card-text">' + esc(t.title) + "</p>" +
         '<div class="card-foot">' +
-          '<span class="assignee">' + avatar(assigneeIdentity(t), assigneeName(t)) +
-            esc(assigneeName(t)) + (t.assignee_email && !t.assignee_id ? ' <small class="pending-tag">invited</small>' : "") + "</span>" +
+          '<div class="assignee-list">' + assigneesHtml + "</div>" +
           '<span class="meta">' +
             (cc ? "💬 " + cc + " " : "") + ago(t.created_at) +
           "</span>" +
@@ -463,17 +523,41 @@
      TICKET ACTIONS
      ============================================================ */
   async function setStatus(t, status) {
+    var body = prompt(status === "done"
+      ? "Add a comment before marking this ticket done:"
+      : "Add a comment before reopening this ticket:");
+    if (body == null) return;
+    body = body.trim();
+    if (!body) { toast("Comment is required"); return; }
+
     var r = await sb.from("tickets").update({ status: status }).eq("id", t.id);
     if (r.error) { toast(r.error.message); return; }
+    var comment = await sb.from("comments").insert({
+      ticket_id: t.id,
+      author_id: state.me.id,
+      body: (status === "done" ? "Marked done: " : "Reopened: ") + body
+    });
+    if (comment.error) { toast(comment.error.message); return; }
     toast(status === "done" ? "Marked done" : "Ticket updated");
     await refresh();
   }
 
   async function reopen(t) {
+    var body = prompt("Add a comment before reopening this ticket:");
+    if (body == null) return;
+    body = body.trim();
+    if (!body) { toast("Comment is required"); return; }
+
     var r = await sb.from("tickets")
       .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
       .eq("id", t.id);
     if (r.error) { toast(r.error.message); return; }
+    var comment = await sb.from("comments").insert({
+      ticket_id: t.id,
+      author_id: state.me.id,
+      body: "Reopened: " + body
+    });
+    if (comment.error) { toast(comment.error.message); return; }
     toast("Ticket reopened");
     await refresh();
   }
@@ -664,24 +748,25 @@
     }).join("");
   }
   function assigneeOptions(selected) {
-    selected = selected || "";
+    selected = selected || [];
+    if (!Array.isArray(selected)) selected = selected ? [selected] : [];
     var html = '<option value="">Unassigned</option>';
     state.profiles.forEach(function (p) {
       var label = p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
       html += '<option value="' + p.id + '"' +
-        (p.id === selected ? " selected" : "") + ">" + esc(label) + "</option>";
+        (selected.indexOf(p.id) !== -1 ? " selected" : "") + ">" + esc(label) + "</option>";
     });
     state.invitations.forEach(function (i) {
       var key = "email:" + normalizeEmail(i.email);
       html += '<option value="' + esc(key) + '"' +
-        (key === selected ? " selected" : "") + ">" +
+        (selected.indexOf(key) !== -1 ? " selected" : "") + ">" +
         esc(i.full_name) + " (invited)</option>";
     });
     return html;
   }
 
-  function selectedAssigneePatch(value) {
-    if (!value) return { assignee_id: null, assignee_email: null, assignee_name: null };
+  function selectedAssigneeRecord(value) {
+    if (!value) return null;
     if (value.indexOf("email:") === 0) {
       var email = normalizeEmail(value.slice(6));
       var invite = invitationByEmail(email);
@@ -697,6 +782,50 @@
       assignee_email: p ? normalizeEmail(p.email) : null,
       assignee_name: p ? p.full_name : null
     };
+  }
+
+  function selectedAssigneeRecords(select) {
+    return Array.from(select.selectedOptions)
+      .map(function (o) { return selectedAssigneeRecord(o.value); })
+      .filter(Boolean);
+  }
+
+  function assigneePatchFor(records) {
+    var first = records[0];
+    return first ? {
+      assignee_id: first.assignee_id,
+      assignee_email: first.assignee_email,
+      assignee_name: first.assignee_name
+    } : {
+      assignee_id: null,
+      assignee_email: null,
+      assignee_name: null
+    };
+  }
+
+  function assigneeKeysForTicket(t) {
+    return ticketAssignees(t).map(assigneeKey).filter(Boolean);
+  }
+
+  function assigneeRecordsEqual(a, b) {
+    var ak = a.map(assigneeKey).sort().join("|");
+    var bk = b.map(assigneeKey).sort().join("|");
+    return ak === bk;
+  }
+
+  async function replaceTicketAssignees(ticketId, records) {
+    await sb.from("ticket_assignees").delete().eq("ticket_id", ticketId);
+    if (!records.length) return;
+    var rows = records.map(function (a) {
+      return {
+        ticket_id: ticketId,
+        assignee_id: a.assignee_id,
+        assignee_email: a.assignee_email,
+        assignee_name: a.assignee_name
+      };
+    });
+    var r = await sb.from("ticket_assignees").insert(rows);
+    if (r.error) throw r.error;
   }
 
   async function sendInviteEmail(email) {
@@ -787,7 +916,8 @@
         '<label class="field"><span>What needs to be done?</span>' +
           '<textarea id="nt-text" rows="3" placeholder="Describe the task in a line or two..."></textarea></label>' +
         '<label class="field"><span>Assign to</span>' +
-          '<select id="nt-assignee">' + assigneeOptions(null) + "</select></label>" +
+          '<select id="nt-assignee" multiple size="5">' + assigneeOptions([]) + "</select>" +
+          '<small class="field-help">Select one or more people. Leave blank for unassigned.</small></label>' +
         '<div class="field"><span>Priority</span>' +
           '<div class="prio-chips" id="nt-prio">' + prioChips(prio) + "</div></div>" +
       "</div>" +
@@ -821,10 +951,14 @@
         var ins = await sb.from("tickets").insert({
           title: text,
           priority: prio,
-          ...selectedAssigneePatch(modal.querySelector("#nt-assignee").value),
+          ...assigneePatchFor(selectedAssigneeRecords(modal.querySelector("#nt-assignee"))),
           created_by: state.me.id
         }).select().single();
         if (ins.error) throw ins.error;
+        await replaceTicketAssignees(
+          ins.data.id,
+          selectedAssigneeRecords(modal.querySelector("#nt-assignee"))
+        );
         var files = uploader.getFiles();
         if (files.length) await uploadFiles(ins.data.id, files);
         closeModal();
@@ -855,6 +989,8 @@
 
   function renderDetail(t, comments) {
     var modal = el("div", "modal");
+    var canEdit = canEditTicket(t);
+    var canAct = canActOnTicket(t);
 
     var statusPill = t.status === "done"
       ? '<span class="badge done">Done</span>'
@@ -862,12 +998,13 @@
     var reopenBadge = t.reopen_count > 0
       ? '<span class="badge reopen">Reopened ' + t.reopen_count + "x</span>" : "";
 
-    var shots = '<div class="shot-grid">' +
-      (t.attachments || []).map(function (a) {
-        return '<div class="shot"><img src="' + publicUrl(a.storage_path) +
-          '" data-full="' + publicUrl(a.storage_path) + '" alt="screenshot">' +
-          '<button class="rm" data-del-att="' + a.id + '">×</button></div>';
-      }).join("") + "</div>";
+	    var shots = '<div class="shot-grid">' +
+	      (t.attachments || []).map(function (a) {
+	        return '<div class="shot"><img src="' + publicUrl(a.storage_path) +
+	          '" data-full="' + publicUrl(a.storage_path) + '" alt="screenshot">' +
+	          (canEdit ? '<button class="rm" data-del-att="' + a.id + '">×</button>' : "") +
+            "</div>";
+	      }).join("") + "</div>";
 
     var commentsHtml = comments.map(function (c) {
       var canDel = c.author_id === state.me.id;
@@ -889,48 +1026,55 @@
       '<div class="modal-body">' +
         '<div style="margin-bottom:12px">' + statusPill + " " + reopenBadge + "</div>" +
         '<div class="section-label">Task</div>' +
-        '<textarea id="d-text" rows="3" class="box">' + esc(t.title) + "</textarea>" +
+        '<textarea id="d-text" rows="3" class="box"' + (canEdit ? "" : " readonly") + ">" + esc(t.title) + "</textarea>" +
         '<div class="meta-grid" style="margin-top:14px">' +
           '<div class="meta-item"><span>Priority</span>' +
-            '<select id="d-priority">' + priorityOptions(t.priority) + "</select></div>" +
+            '<select id="d-priority"' + (canEdit ? "" : " disabled") + ">" + priorityOptions(t.priority) + "</select></div>" +
           '<div class="meta-item"><span>Assigned to</span>' +
-            '<select id="d-assignee">' + assigneeOptions(assigneeKey(t)) + "</select></div>" +
+            '<select id="d-assignee" multiple size="5"' + (canEdit ? "" : " disabled") + ">" + assigneeOptions(assigneeKeysForTicket(t)) + "</select>" +
+            '<small class="field-help">Select one or more people. Leave blank for unassigned.</small></div>' +
           '<div class="meta-item"><span>Raised by</span>' +
             '<div class="meta-static">' + esc(nameOf(t.created_by)) + "</div></div>" +
           '<div class="meta-item"><span>Created</span>' +
             '<div class="meta-static">' + new Date(t.created_at).toLocaleString() +
             "</div></div>" +
         "</div>" +
-        '<div class="section-label">Screenshots</div>' +
-        shots +
-        '<div id="d-uploader" style="margin-top:8px"></div>' +
+	        '<div class="section-label">Screenshots</div>' +
+	        shots +
+	        (canEdit ? '<div id="d-uploader" style="margin-top:8px"></div>' : "") +
         '<div class="section-label">Comments</div>' +
         '<div class="comment-list">' + commentsHtml + "</div>" +
-        '<div class="comment-box">' +
-          '<textarea id="d-comment" placeholder="Write a comment..."></textarea>' +
-          '<button class="btn btn-primary" id="d-send">Send</button>' +
-        "</div>" +
+        (canAct
+          ? '<div class="comment-box">' +
+              '<textarea id="d-comment" placeholder="Write a comment..."></textarea>' +
+              '<button class="btn btn-primary" id="d-send">Send</button>' +
+            "</div>"
+          : '<p class="muted view-only-note">Only the creator and assignees can comment or update status.</p>') +
       "</div>" +
       '<div class="modal-foot">' +
-        '<button class="btn btn-danger" id="d-delete">Delete ticket</button>' +
+        (canEdit ? '<button class="btn btn-danger" id="d-delete">Delete ticket</button>' : '<span></span>') +
         '<div class="modal-actions">' +
-          '<button class="btn btn-ghost" id="d-save" disabled>Save changes</button>' +
-          (t.status === "open"
-            ? '<button class="btn btn-primary" id="d-status">Mark done</button>'
-            : '<button class="btn btn-primary" id="d-status">Reopen ticket</button>') +
+          (canEdit ? '<button class="btn btn-ghost" id="d-save" disabled>Save changes</button>' : "") +
+          (canAct
+            ? (t.status === "open"
+                ? '<button class="btn btn-primary" id="d-status">Mark done</button>'
+                : '<button class="btn btn-primary" id="d-status">Reopen ticket</button>')
+            : "") +
         "</div>" +
       "</div>";
 
-    var uploader = createUploader(function (files) {
-      if (!files.length) return;
-      uploadFiles(t.id, files).then(function () {
-        uploader.clear();
-        toast("Screenshot added");
-        openDetail(t.id);
-        loadTickets().then(renderBoard);
-      }).catch(function (err) { toast(err.message || "Upload failed"); });
-    });
-    modal.querySelector("#d-uploader").appendChild(uploader.el);
+    if (canEdit) {
+      var uploader = createUploader(function (files) {
+        if (!files.length) return;
+        uploadFiles(t.id, files).then(function () {
+          uploader.clear();
+          toast("Screenshot added");
+          openDetail(t.id);
+          loadTickets().then(renderBoard);
+        }).catch(function (err) { toast(err.message || "Upload failed"); });
+      });
+      modal.querySelector("#d-uploader").appendChild(uploader.el);
+    }
 
     // close
     modal.addEventListener("click", function (e) {
@@ -941,6 +1085,7 @@
     modal.querySelector(".shot-grid").addEventListener("click", function (e) {
       var del = e.target.closest("[data-del-att]");
       if (del) {
+        if (!canEdit) return;
         var att = (t.attachments || []).find(function (a) {
           return a.id === del.dataset.delAtt;
         });
@@ -953,52 +1098,70 @@
 
     var saveBtn = modal.querySelector("#d-save");
     function currentEditPatch() {
+      var assignees = selectedAssigneeRecords(modal.querySelector("#d-assignee"));
       return {
         title: modal.querySelector("#d-text").value.trim(),
         priority: modal.querySelector("#d-priority").value,
-        ...selectedAssigneePatch(modal.querySelector("#d-assignee").value)
+        assignees: assignees,
+        ...assigneePatchFor(assignees)
       };
     }
     function editsChanged() {
       var patch = currentEditPatch();
       return patch.title !== t.title ||
         patch.priority !== t.priority ||
-        patch.assignee_id !== (t.assignee_id || null) ||
-        patch.assignee_email !== (t.assignee_email || null) ||
-        patch.assignee_name !== (t.assignee_name || null);
+        !assigneeRecordsEqual(patch.assignees, ticketAssignees(t));
     }
     function markDirty() {
       saveBtn.disabled = !editsChanged();
     }
 
-    modal.querySelector("#d-text").addEventListener("input", markDirty);
-    modal.querySelector("#d-priority").addEventListener("change", markDirty);
-    modal.querySelector("#d-assignee").addEventListener("change", markDirty);
+    if (canEdit) {
+      modal.querySelector("#d-text").addEventListener("input", markDirty);
+      modal.querySelector("#d-priority").addEventListener("change", markDirty);
+      modal.querySelector("#d-assignee").addEventListener("change", markDirty);
 
-    saveBtn.addEventListener("click", async function () {
-      var patch = currentEditPatch();
-      if (!patch.title) { toast("Task text cannot be empty"); return; }
-      saveBtn.disabled = true;
-      saveBtn.textContent = "Saving...";
-      var ok = await updateTicket(t.id, patch);
-      if (ok) {
-        toast("Changes saved");
-        closeModal();
-      } else {
-        saveBtn.disabled = false;
-        saveBtn.textContent = "Save changes";
-      }
-    });
+      saveBtn.addEventListener("click", async function () {
+        var patch = currentEditPatch();
+        if (!patch.title) { toast("Task text cannot be empty"); return; }
+        saveBtn.disabled = true;
+        saveBtn.textContent = "Saving...";
+        var assignees = patch.assignees;
+        delete patch.assignees;
+        var ok = await updateTicket(t.id, patch);
+        if (ok) {
+          try {
+            await replaceTicketAssignees(t.id, assignees);
+            toast("Changes saved");
+            closeModal();
+            await refresh();
+          } catch (err) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save changes";
+            toast(err.message || "Could not save assignees");
+          }
+        } else {
+          saveBtn.disabled = false;
+          saveBtn.textContent = "Save changes";
+        }
+      });
+    }
 
     // status button
-    modal.querySelector("#d-status").addEventListener("click", function () {
-      if (t.status === "open") setStatus(t, "done");
-      else reopen(t);
-    });
+    var statusBtn = modal.querySelector("#d-status");
+    if (statusBtn) {
+      statusBtn.addEventListener("click", function () {
+        if (t.status === "open") setStatus(t, "done");
+        else reopen(t);
+      });
+    }
     // delete
-    modal.querySelector("#d-delete").addEventListener("click", function () {
-      deleteTicket(t);
-    });
+    var deleteBtn = modal.querySelector("#d-delete");
+    if (deleteBtn) {
+      deleteBtn.addEventListener("click", function () {
+        deleteTicket(t);
+      });
+    }
 
     // add comment
     async function sendComment() {
@@ -1015,10 +1178,14 @@
       openDetail(t.id);
       loadTickets().then(renderBoard);
     }
-    modal.querySelector("#d-send").addEventListener("click", sendComment);
-    modal.querySelector("#d-comment").addEventListener("keydown", function (e) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") sendComment();
-    });
+    var sendBtn = modal.querySelector("#d-send");
+    var commentBox = modal.querySelector("#d-comment");
+    if (sendBtn && commentBox) {
+      sendBtn.addEventListener("click", sendComment);
+      commentBox.addEventListener("keydown", function (e) {
+        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") sendComment();
+      });
+    }
 
     // delete comment
     modal.querySelector(".comment-list").addEventListener("click", async function (e) {
@@ -1053,6 +1220,8 @@
     sb.channel("task-tracker")
       .on("postgres_changes",
         { event: "*", schema: "public", table: "tickets" }, scheduleRefresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "ticket_assignees" }, scheduleRefresh)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "invitations" }, scheduleRefresh)
       .on("postgres_changes",
