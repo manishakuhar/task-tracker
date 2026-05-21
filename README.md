@@ -54,7 +54,7 @@ Everyone signed in sees the same live board.
 2. Copy the **Project URL** and the **anon public** key.
 3. Open `config.js` in this folder and paste both values in. Save the file.
 4. Set `APP_URL` to your deployed Vercel URL. This is what invite emails use
-   when people click their sign-in links.
+   when people click their sign-in links. Do not set this to `localhost`.
 
 ### 6. Try it locally
 
@@ -90,6 +90,10 @@ tickets to their email, and Supabase will email them a sign-in link. Once they
 sign in with the same email, those tickets appear under **My tickets**. Invited
 people can use the emailed invite link immediately, and can use **Email me a
 sign-in link** later if they do not create a password.
+
+If users see **email rate limit exceeded**, Supabase has blocked auth emails
+temporarily. Wait about an hour, or configure custom SMTP in Supabase
+Authentication settings for reliable team invites.
 
 Whenever you edit the app and push to GitHub, Vercel deploys the update.
 

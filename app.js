@@ -164,6 +164,13 @@
     e.textContent = msg;
     show(e);
   }
+  function friendlyAuthError(err) {
+    var msg = (err && err.message) || "Something went wrong.";
+    if (/rate limit/i.test(msg)) {
+      return "Supabase has temporarily blocked auth emails because too many invite/sign-in emails were sent. Wait about an hour, or ask the admin to set up custom SMTP in Supabase.";
+    }
+    return msg;
+  }
 
   $("auth-toggle-btn").addEventListener("click", function () {
     state.signupMode = !state.signupMode;
@@ -204,7 +211,7 @@
         if (si.error) throw si.error;
       }
     } catch (err) {
-      authError(err.message || "Something went wrong.");
+      authError(friendlyAuthError(err));
     } finally {
       btn.disabled = false;
       btn.textContent = state.signupMode ? "Create account" : "Sign in";
@@ -227,7 +234,7 @@
       note.textContent = "Check your email for a sign-in link.";
       show(note);
     } catch (err) {
-      authError(err.message || "Could not send sign-in link.");
+      authError(friendlyAuthError(err));
     } finally {
       btn.disabled = false;
       btn.textContent = "Email me a sign-in link";
@@ -692,7 +699,12 @@
   }
 
   async function sendInviteEmail(email) {
-    var redirectBase = (CFG.APP_URL || location.origin).replace(/\/+$/, "");
+    if (!CFG.APP_URL || /localhost|127\.0\.0\.1/i.test(CFG.APP_URL)) {
+      return {
+        error: new Error("APP_URL must be set to the deployed Vercel URL in config.js before sending email links.")
+      };
+    }
+    var redirectBase = CFG.APP_URL.replace(/\/+$/, "");
     var redirectTo = redirectBase + location.pathname;
     return sb.auth.signInWithOtp({
       email: email,
@@ -755,7 +767,7 @@
         await refresh();
       } catch (err) {
         btn.disabled = false; btn.textContent = "Send invite";
-        toast(err.message || "Could not send invite");
+        toast(friendlyAuthError(err));
       }
     });
 
