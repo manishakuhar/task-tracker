@@ -314,6 +314,7 @@ code {
 .badge.prio-urgent { background: #fde3e3; color: var(--urgent); }
 .badge.done   { background: #e3f6e8; color: var(--done); }
 .badge.reopen { background: #f3e8ff; color: #7c3aed; }
+.badge.progress { background: #fff7ed; color: #9a3412; }
 
 /* ============ Assignee / avatar ============ */
 .assignee { display: flex; align-items: center; gap: 6px; font-size: .83rem; }
@@ -387,6 +388,7 @@ code {
 .invite-help { font-size: .88rem; }
 .view-only-note { font-size: .85rem; margin-top: 10px; }
 .part-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.part-summary { color: var(--muted); font-size: .86rem; margin: -2px 0 8px; }
 .part-row {
   display: flex;
   align-items: center;
@@ -405,7 +407,7 @@ code {
   font-weight: 800;
   text-transform: uppercase;
 }
-.part-status.open { background: #eef1f5; color: var(--low); }
+.part-status.open { background: #fff7ed; color: #9a3412; }
 .part-status.done { background: #e3f6e8; color: var(--done); }
 
 /* full-width styled textarea inside modals */

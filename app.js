@@ -132,6 +132,13 @@
     var assignees = ticketAssignees(t);
     return assignees.length > 0 && assignees.every(assigneePartComplete);
   }
+  function partSummary(t) {
+    var assignees = ticketAssignees(t);
+    if (!assignees.length) return "";
+    var done = assignees.filter(assigneePartComplete).length;
+    var pending = assignees.length - done;
+    return done + " done · " + pending + " pending";
+  }
   function publicUrl(path) {
     return sb.storage.from("screenshots").getPublicUrl(path).data.publicUrl;
   }
@@ -488,6 +495,8 @@
     if (t.status === "done") badges += '<span class="badge done">Done</span>';
     if (t.reopen_count > 0)
       badges += '<span class="badge reopen">Reopened ' + t.reopen_count + "x</span>";
+    var summary = partSummary(t);
+    if (summary) badges += '<span class="badge progress">' + esc(summary) + "</span>";
 
     var cc = commentCount(t);
     var assignees = ticketAssignees(t);
@@ -505,12 +514,14 @@
     var actionBtn = "";
     if (myPart && t.status === "open") {
       actionBtn = assigneePartComplete(myPart)
-        ? '<button class="btn btn-ghost btn-sm" data-act="part-open">Reopen my part</button>'
-        : '<button class="btn btn-ghost btn-sm" data-act="part-done">Mark my part done</button>';
+        ? '<button class="btn btn-ghost btn-sm" data-act="part-open">Reopen</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="part-done">Mark done</button>';
     } else if (canEditTicket(t)) {
-      actionBtn = t.status === "open"
-        ? '<button class="btn btn-ghost btn-sm" data-act="done">Mark whole ticket done</button>'
-        : '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen ticket</button>';
+      if (t.status === "open" && (!ticketAssignees(t).length || allPartsDone(t))) {
+        actionBtn = '<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>';
+      } else if (t.status === "done") {
+        actionBtn = '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>';
+      }
     }
 
     card.innerHTML =
@@ -1109,7 +1120,7 @@
             '<span class="assignee-pill">' + avatar(assigneeIdentity(a), assigneeName(a)) +
               '<span>' + esc(assigneeName(a)) + '</span></span>' +
             '<span class="part-status ' + (assigneePartComplete(a) ? "done" : "open") + '">' +
-              (assigneePartComplete(a) ? "Done" : "Open") +
+              (assigneePartComplete(a) ? "Done" : "Pending") +
             "</span></div>";
         }).join("") + "</div>"
       : '<p class="muted" style="font-size:.88rem">No assignees yet.</p>';
@@ -1134,6 +1145,7 @@
             "</div></div>" +
         "</div>" +
         '<div class="section-label">Assignee progress</div>' +
+        (partSummary(t) ? '<p class="part-summary">' + esc(partSummary(t)) + "</p>" : "") +
         assigneeProgressHtml +
         '<div class="section-label">Screenshots</div>' +
 	        shots +
