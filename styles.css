@@ -311,7 +311,19 @@ code {
   color: var(--muted);
   font-size: .8rem;
 }
-.card-actions { display: flex; min-height: 31px; align-items: flex-end; }
+.card-actions {
+  display: flex;
+  min-height: 36px;
+  align-items: flex-end;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+.card-actions .btn {
+  width: 100%;
+  justify-content: center;
+  background: #f8fafc;
+}
+.card-actions .btn:hover { background: #eef0f5; }
 
 /* ============ Badges ============ */
 .badge {
