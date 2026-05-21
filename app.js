@@ -132,6 +132,11 @@
     var assignees = ticketAssignees(t);
     return assignees.length > 0 && assignees.every(assigneePartComplete);
   }
+  function expectedTicketStatus(t) {
+    var assignees = ticketAssignees(t);
+    if (!assignees.length) return t.status;
+    return assignees.every(assigneePartComplete) ? "done" : "open";
+  }
   function partSummary(t) {
     var assignees = ticketAssignees(t);
     if (!assignees.length) return "";
@@ -383,6 +388,20 @@
     state.tickets.forEach(function (t) {
       t.assignees = grouped[t.id] || legacyAssignees(t);
     });
+    await correctTicketStatusesFromParts();
+  }
+
+  async function correctTicketStatusesFromParts() {
+    var fixes = state.tickets.filter(function (t) {
+      var assignees = ticketAssignees(t);
+      return assignees.length && t.status !== expectedTicketStatus(t);
+    });
+    if (!fixes.length) return;
+    await Promise.all(fixes.map(function (t) {
+      var nextStatus = expectedTicketStatus(t);
+      t.status = nextStatus;
+      return sb.from("tickets").update({ status: nextStatus }).eq("id", t.id);
+    }));
   }
 
   function commentCount(t) {
@@ -630,17 +649,22 @@
         ? { ...a, part_status: status, completed_at: status === "done" ? new Date().toISOString() : null }
         : a;
     });
-    if (status === "done" && updatedAssignees.length && updatedAssignees.every(assigneePartComplete)) {
-      await sb.from("tickets").update({ status: "done" }).eq("id", t.id);
+    var nextTicketStatus = updatedAssignees.length && updatedAssignees.every(assigneePartComplete)
+      ? "done"
+      : "open";
+    if (t.status !== nextTicketStatus) {
+      var ticketPatch = { status: nextTicketStatus };
+      if (status === "open" && t.status === "done") {
+        ticketPatch.reopen_count = (t.reopen_count || 0) + 1;
+      }
+      await sb.from("tickets").update(ticketPatch).eq("id", t.id);
+    }
+    if (status === "done" && nextTicketStatus === "done") {
       await sb.from("comments").insert({
         ticket_id: t.id,
         author_id: state.me.id,
         body: "All assigned parts are done. Ticket marked done."
       });
-    } else if (status === "open" && t.status === "done") {
-      await sb.from("tickets")
-        .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
-        .eq("id", t.id);
     }
 
     toast(status === "done" ? "Your part is done" : "Your part was reopened");
@@ -673,7 +697,17 @@
     });
     if (comment.error) { toast(comment.error.message); return; }
 
-    if (status === "open" && t.status === "done") {
+    var updatedAssignees = ticketAssignees(t).map(function (a) {
+      return a.id === assignee.id
+        ? { ...a, part_status: status, completed_at: status === "done" ? new Date().toISOString() : null }
+        : a;
+    });
+    var nextTicketStatus = updatedAssignees.length && updatedAssignees.every(assigneePartComplete)
+      ? "done"
+      : "open";
+    if (nextTicketStatus === "done" && t.status !== "done") {
+      await sb.from("tickets").update({ status: "done" }).eq("id", t.id);
+    } else if (nextTicketStatus === "open" && t.status === "done") {
       await sb.from("tickets")
         .update({ status: "open", reopen_count: (t.reopen_count || 0) + 1 })
         .eq("id", t.id);

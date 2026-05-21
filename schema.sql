@@ -216,6 +216,21 @@ language plpgsql
 security definer set search_path = public
 as $$
 begin
+  if new.status = 'done'
+     and exists (
+       select 1
+       from public.ticket_assignees
+       where ticket_id = old.id
+     )
+     and exists (
+       select 1
+       from public.ticket_assignees
+       where ticket_id = old.id
+         and part_status <> 'done'
+     ) then
+    raise exception 'All assignees must complete their work before the ticket can be marked done';
+  end if;
+
   if old.created_by = auth.uid() then
     return new;
   end if;
@@ -266,6 +281,68 @@ drop trigger if exists ticket_assignees_protect_update on public.ticket_assignee
 create trigger ticket_assignees_protect_update
   before update on public.ticket_assignees
   for each row execute function public.protect_ticket_assignee_update();
+
+-- The ticket status follows assignee parts:
+-- any pending assignee keeps the ticket open; all done moves it to done.
+create or replace function public.sync_ticket_status_from_parts()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  affected_ticket uuid;
+  next_status text;
+begin
+  affected_ticket := coalesce(new.ticket_id, old.ticket_id);
+
+  if affected_ticket is null then
+    return null;
+  end if;
+
+  if not exists (
+    select 1 from public.ticket_assignees where ticket_id = affected_ticket
+  ) then
+    return null;
+  end if;
+
+  if exists (
+    select 1
+    from public.ticket_assignees
+    where ticket_id = affected_ticket
+      and part_status <> 'done'
+  ) then
+    next_status := 'open';
+  else
+    next_status := 'done';
+  end if;
+
+  update public.tickets
+     set status = next_status
+   where id = affected_ticket
+     and status <> next_status;
+
+  return null;
+end;
+$$;
+
+drop trigger if exists ticket_assignees_sync_ticket_status on public.ticket_assignees;
+create trigger ticket_assignees_sync_ticket_status
+  after insert or update or delete on public.ticket_assignees
+  for each row execute function public.sync_ticket_status_from_parts();
+
+-- Repair existing data if any multi-assignee ticket was previously closed early.
+update public.tickets t
+   set status = 'open'
+ where status = 'done'
+   and exists (
+     select 1 from public.ticket_assignees ta where ta.ticket_id = t.id
+   )
+   and exists (
+     select 1
+     from public.ticket_assignees ta
+     where ta.ticket_id = t.id
+       and ta.part_status <> 'done'
+   );
 
 -- When an invited person signs in for the first time, attach all tickets
 -- previously assigned to their email address to their real profile.
