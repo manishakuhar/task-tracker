@@ -53,6 +53,8 @@ Everyone signed in sees the same live board.
 1. In Supabase, go to **Project Settings** > **API**.
 2. Copy the **Project URL** and the **anon public** key.
 3. Open `config.js` in this folder and paste both values in. Save the file.
+4. Set `APP_URL` to your deployed Vercel URL. This is what invite emails use
+   when people click their sign-in links.
 
 ### 6. Try it locally
 
@@ -79,7 +81,8 @@ The whole `task-tracker` folder is a static site. It now includes
 5. Click **Deploy**.
 6. Copy the Vercel production URL.
 7. In Supabase, go to **Authentication** > **URL Configuration**.
-8. Add the Vercel URL to **Redirect URLs**.
+8. Set **Site URL** to the Vercel URL.
+9. Add the Vercel URL to **Redirect URLs**.
 
 Each teammate can open the URL and create their own account with their name,
 email, and a password. You can also click **Invite person** first, assign

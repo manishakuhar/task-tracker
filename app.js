@@ -692,7 +692,8 @@
   }
 
   async function sendInviteEmail(email) {
-    var redirectTo = location.origin + location.pathname;
+    var redirectBase = (CFG.APP_URL || location.origin).replace(/\/+$/, "");
+    var redirectTo = redirectBase + location.pathname;
     return sb.auth.signInWithOtp({
       email: email,
       options: { emailRedirectTo: redirectTo, shouldCreateUser: true }
