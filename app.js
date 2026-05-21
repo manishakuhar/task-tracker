@@ -1087,6 +1087,19 @@
     var modal = el("div", "modal");
     var canEdit = canEditTicket(t);
     var canAct = canActOnTicket(t);
+    var myPart = myAssigneeRow(t);
+    var statusAction = "";
+    if (myPart && t.status === "open") {
+      statusAction = assigneePartComplete(myPart)
+        ? '<button class="btn btn-primary" id="d-my-part-status" data-part-status="open">Reopen my work</button>'
+        : '<button class="btn btn-primary" id="d-my-part-status" data-part-status="done">Mark done for me</button>';
+    } else if (canEdit) {
+      if (t.status === "open" && (!ticketAssignees(t).length || allPartsDone(t))) {
+        statusAction = '<button class="btn btn-primary" id="d-status">Mark ticket done</button>';
+      } else if (t.status === "done") {
+        statusAction = '<button class="btn btn-primary" id="d-status">Reopen ticket</button>';
+      }
+    }
 
     var statusPill = t.status === "done"
       ? '<span class="badge done">Done</span>'
@@ -1162,14 +1175,10 @@
       "</div>" +
       '<div class="modal-foot">' +
         (canEdit ? '<button class="btn btn-danger" id="d-delete">Delete ticket</button>' : '<span></span>') +
-        '<div class="modal-actions">' +
-          (canEdit ? '<button class="btn btn-ghost" id="d-save" disabled>Save changes</button>' : "") +
-          (canAct
-            ? (t.status === "open"
-                ? '<button class="btn btn-primary" id="d-status">Mark done</button>'
-                : '<button class="btn btn-primary" id="d-status">Reopen ticket</button>')
-            : "") +
-        "</div>" +
+	        '<div class="modal-actions">' +
+	          (canEdit ? '<button class="btn btn-ghost" id="d-save" disabled>Save changes</button>' : "") +
+	          statusAction +
+	        "</div>" +
       "</div>";
 
     if (canEdit) {
@@ -1257,6 +1266,12 @@
     }
 
     // status button
+    var myPartStatusBtn = modal.querySelector("#d-my-part-status");
+    if (myPartStatusBtn) {
+      myPartStatusBtn.addEventListener("click", function () {
+        setMyPartStatus(t, myPartStatusBtn.dataset.partStatus);
+      });
+    }
     var statusBtn = modal.querySelector("#d-status");
     if (statusBtn) {
       statusBtn.addEventListener("click", function () {
