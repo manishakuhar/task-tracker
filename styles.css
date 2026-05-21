@@ -116,6 +116,36 @@ code {
   box-shadow: 0 0 0 3px rgba(79, 70, 229, .12);
 }
 .field textarea { resize: vertical; }
+.assignee-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 7px;
+}
+.assignee-picker.disabled { opacity: .78; }
+.assignee-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 10px;
+  font-size: .88rem;
+  cursor: pointer;
+}
+.assignee-option:has(input:checked) {
+  border-color: var(--accent);
+  background: #f0f1fd;
+}
+.assignee-option input { width: auto; flex-shrink: 0; }
+.assignee-option span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.empty-assignees { font-size: .85rem; }
 .auth-toggle { text-align: center; margin-top: 16px; font-size: .9rem; color: var(--muted); }
 .auth-link-btn { margin-top: 8px; }
 .form-error {

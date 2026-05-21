@@ -747,21 +747,30 @@
         cap(p) + "</button>";
     }).join("");
   }
-  function assigneeOptions(selected) {
+  function assigneePicker(selected, disabled) {
     selected = selected || [];
     if (!Array.isArray(selected)) selected = selected ? [selected] : [];
-    var html = '<option value="">Unassigned</option>';
+    var html = '<div class="assignee-picker' + (disabled ? " disabled" : "") + '">';
     state.profiles.forEach(function (p) {
       var label = p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
-      html += '<option value="' + p.id + '"' +
-        (selected.indexOf(p.id) !== -1 ? " selected" : "") + ">" + esc(label) + "</option>";
+      html += '<label class="assignee-option">' +
+        '<input type="checkbox" value="' + p.id + '"' +
+        (selected.indexOf(p.id) !== -1 ? " checked" : "") +
+        (disabled ? " disabled" : "") + "> " +
+        '<span>' + esc(label) + "</span></label>";
     });
     state.invitations.forEach(function (i) {
       var key = "email:" + normalizeEmail(i.email);
-      html += '<option value="' + esc(key) + '"' +
-        (selected.indexOf(key) !== -1 ? " selected" : "") + ">" +
-        esc(i.full_name) + " (invited)</option>";
+      html += '<label class="assignee-option">' +
+        '<input type="checkbox" value="' + esc(key) + '"' +
+        (selected.indexOf(key) !== -1 ? " checked" : "") +
+        (disabled ? " disabled" : "") + "> " +
+        '<span>' + esc(i.full_name) + " (invited)</span></label>";
     });
+    if (html === '<div class="assignee-picker' + (disabled ? " disabled" : "") + '">') {
+      html += '<div class="muted empty-assignees">No people added yet.</div>';
+    }
+    html += "</div>";
     return html;
   }
 
@@ -784,9 +793,9 @@
     };
   }
 
-  function selectedAssigneeRecords(select) {
-    return Array.from(select.selectedOptions)
-      .map(function (o) { return selectedAssigneeRecord(o.value); })
+  function selectedAssigneeRecords(container) {
+    return Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+      .map(function (input) { return selectedAssigneeRecord(input.value); })
       .filter(Boolean);
   }
 
@@ -913,11 +922,11 @@
         '<button class="icon-btn" data-close>×</button></div>' +
       '<div class="modal-body">' +
         '<div class="field"><span>Screenshot</span><div id="nt-uploader"></div></div>' +
-        '<label class="field"><span>What needs to be done?</span>' +
-          '<textarea id="nt-text" rows="3" placeholder="Describe the task in a line or two..."></textarea></label>' +
-        '<label class="field"><span>Assign to</span>' +
-          '<select id="nt-assignee" multiple size="5">' + assigneeOptions([]) + "</select>" +
-          '<small class="field-help">Select one or more people. Leave blank for unassigned.</small></label>' +
+	        '<label class="field"><span>What needs to be done?</span>' +
+	          '<textarea id="nt-text" rows="3" placeholder="Describe the task in a line or two..."></textarea></label>' +
+	        '<div class="field"><span>Assign to</span>' +
+	          '<div id="nt-assignee">' + assigneePicker([]) + "</div>" +
+	          '<small class="field-help">Tick one or more people. Leave blank for unassigned.</small></div>' +
         '<div class="field"><span>Priority</span>' +
           '<div class="prio-chips" id="nt-prio">' + prioChips(prio) + "</div></div>" +
       "</div>" +
@@ -951,7 +960,7 @@
         var ins = await sb.from("tickets").insert({
           title: text,
           priority: prio,
-          ...assigneePatchFor(selectedAssigneeRecords(modal.querySelector("#nt-assignee"))),
+	          ...assigneePatchFor(selectedAssigneeRecords(modal.querySelector("#nt-assignee"))),
           created_by: state.me.id
         }).select().single();
         if (ins.error) throw ins.error;
@@ -1028,11 +1037,11 @@
         '<div class="section-label">Task</div>' +
         '<textarea id="d-text" rows="3" class="box"' + (canEdit ? "" : " readonly") + ">" + esc(t.title) + "</textarea>" +
         '<div class="meta-grid" style="margin-top:14px">' +
-          '<div class="meta-item"><span>Priority</span>' +
-            '<select id="d-priority"' + (canEdit ? "" : " disabled") + ">" + priorityOptions(t.priority) + "</select></div>" +
-          '<div class="meta-item"><span>Assigned to</span>' +
-            '<select id="d-assignee" multiple size="5"' + (canEdit ? "" : " disabled") + ">" + assigneeOptions(assigneeKeysForTicket(t)) + "</select>" +
-            '<small class="field-help">Select one or more people. Leave blank for unassigned.</small></div>' +
+	          '<div class="meta-item"><span>Priority</span>' +
+	            '<select id="d-priority"' + (canEdit ? "" : " disabled") + ">" + priorityOptions(t.priority) + "</select></div>" +
+	          '<div class="meta-item"><span>Assigned to</span>' +
+	            '<div id="d-assignee">' + assigneePicker(assigneeKeysForTicket(t), !canEdit) + "</div>" +
+	            '<small class="field-help">Tick one or more people. Leave blank for unassigned.</small></div>' +
           '<div class="meta-item"><span>Raised by</span>' +
             '<div class="meta-static">' + esc(nameOf(t.created_by)) + "</div></div>" +
           '<div class="meta-item"><span>Created</span>' +
