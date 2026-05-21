@@ -262,7 +262,13 @@ code {
   font-size: .72rem; font-weight: 700;
   padding: 3px 9px; border-radius: 999px;
 }
-.card-pad { padding: 13px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card-pad {
+  padding: 13px;
+  display: grid;
+  grid-template-rows: auto minmax(58px, 1fr) auto auto auto;
+  gap: 9px;
+  min-width: 0;
+}
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .card-text {
   font-size: .95rem; line-height: 1.45;
@@ -315,13 +321,13 @@ code {
   display: flex;
   min-height: 36px;
   align-items: flex-end;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
+  padding-top: 2px;
 }
 .card-actions .btn {
   width: 100%;
   justify-content: center;
   background: #f8fafc;
+  border-color: #d7dce5;
 }
 .card-actions .btn:hover { background: #eef0f5; }
 
