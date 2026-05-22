@@ -632,7 +632,7 @@
   function autoGrowTextarea(textarea) {
     if (!textarea) return;
     textarea.style.height = "auto";
-    textarea.style.height = textarea.scrollHeight + "px";
+    textarea.style.height = Math.max(textarea.scrollHeight, 140) + "px";
   }
 
   function syncScopeButtons() {
@@ -1505,8 +1505,6 @@
         copyTicketLink(t.id);
       });
     }
-    autoGrowTextarea(modal.querySelector("#d-text"));
-
     // enlarge screenshots
     modal.querySelector(".shot-grid").addEventListener("click", function (e) {
       var del = e.target.closest("[data-del-att]");
@@ -1647,6 +1645,9 @@
     });
 
     openModal(modal, true);
+    requestAnimationFrame(function () {
+      autoGrowTextarea(modal.querySelector("#d-text"));
+    });
   }
 
   /* ============================================================

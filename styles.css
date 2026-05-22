@@ -473,10 +473,12 @@ code {
   resize: vertical;
 }
 .detail-task-box {
-  min-height: 92px;
+  min-height: 140px;
   max-height: none;
   overflow: hidden;
-  line-height: 1.48;
+  line-height: 1.58;
+  font-size: 1rem;
+  white-space: pre-wrap;
 }
 .box:focus {
   outline: none; border-color: var(--accent);
