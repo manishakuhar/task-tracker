@@ -25,6 +25,7 @@
     signupMode: false
   };
   var activeUploader = null;
+  var activeDetailTicketId = null;
 
   var PRIORITIES = ["urgent", "high", "medium", "low"];
   var PRIO_RANK = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -167,8 +168,8 @@
   }
 
   /* ---------- Modal helpers ---------- */
-  function openModal(node) {
-    closeModal();
+  function openModal(node, keepTicketUrl) {
+    closeModal(keepTicketUrl);
     var back = el("div", "modal-backdrop");
     back.appendChild(node);
     back.addEventListener("mousedown", function (e) {
@@ -176,9 +177,47 @@
     });
     $("modal-root").appendChild(back);
   }
-  function closeModal() {
+  function closeModal(keepTicketUrl) {
     $("modal-root").innerHTML = "";
     activeUploader = null;
+    if (activeDetailTicketId && !keepTicketUrl) clearTicketUrl();
+    if (!keepTicketUrl) activeDetailTicketId = null;
+  }
+
+  /* ---------- Ticket links ---------- */
+  function ticketIdFromUrl() {
+    return new URL(location.href).searchParams.get("ticket");
+  }
+  function ticketShareUrl(id) {
+    var url = new URL(location.href);
+    url.searchParams.set("ticket", id);
+    return url.toString();
+  }
+  function setTicketUrl(id) {
+    var url = new URL(location.href);
+    if (url.searchParams.get("ticket") === id) return;
+    url.searchParams.set("ticket", id);
+    history.pushState({ ticket: id }, "", url);
+  }
+  function clearTicketUrl() {
+    var url = new URL(location.href);
+    if (!url.searchParams.has("ticket")) return;
+    url.searchParams.delete("ticket");
+    history.pushState({}, "", url);
+  }
+  async function copyTicketLink(id) {
+    var link = ticketShareUrl(id);
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Ticket link copied");
+    } catch (err) {
+      prompt("Copy this ticket link:", link);
+    }
+  }
+  async function openTicketFromUrl() {
+    var id = ticketIdFromUrl();
+    if (!id || !state.me) return;
+    await openDetail(id, { fromUrl: true });
   }
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
@@ -1117,7 +1156,7 @@
       };
     }
     var redirectBase = CFG.APP_URL.replace(/\/+$/, "");
-    var redirectTo = redirectBase + location.pathname;
+    var redirectTo = redirectBase + location.pathname + location.search;
     return sb.auth.signInWithOtp({
       email: email,
       options: { emailRedirectTo: redirectTo, shouldCreateUser: true }
@@ -1263,10 +1302,17 @@
   /* ============================================================
      TICKET DETAIL MODAL
      ============================================================ */
-  async function openDetail(id) {
+  async function openDetail(id, options) {
+    options = options || {};
     var t = state.tickets.find(function (x) { return x.id === id; });
     if (!t) { await refresh(); t = state.tickets.find(function (x) { return x.id === id; }); }
-    if (!t) { toast("Ticket not found"); return; }
+    if (!t) {
+      toast("Ticket not found");
+      if (options.fromUrl) clearTicketUrl();
+      return;
+    }
+    activeDetailTicketId = id;
+    if (!options.fromUrl) setTicketUrl(id);
     var cr = await sb.from("comments")
       .select("id,body,created_at,author_id")
       .eq("ticket_id", id).order("created_at");
@@ -1338,7 +1384,10 @@
 
     modal.innerHTML =
       '<div class="modal-head"><h2>Ticket</h2>' +
-        '<button class="icon-btn" data-close>×</button></div>' +
+        '<div class="modal-head-actions">' +
+          '<button class="btn btn-ghost btn-sm" id="d-copy-link" type="button">Copy link</button>' +
+          '<button class="icon-btn" data-close>×</button>' +
+        "</div></div>" +
       '<div class="modal-body">' +
         '<div style="margin-bottom:12px">' + statusPill + " " + reopenBadge + "</div>" +
         '<div class="section-label">Task</div>' +
@@ -1395,6 +1444,12 @@
     modal.addEventListener("click", function (e) {
       if (e.target.closest("[data-close]")) closeModal();
     });
+    var copyLinkBtn = modal.querySelector("#d-copy-link");
+    if (copyLinkBtn) {
+      copyLinkBtn.addEventListener("click", function () {
+        copyTicketLink(t.id);
+      });
+    }
 
     // enlarge screenshots
     modal.querySelector(".shot-grid").addEventListener("click", function (e) {
@@ -1532,7 +1587,7 @@
       openDetail(t.id);
     });
 
-    openModal(modal);
+    openModal(modal, true);
   }
 
   /* ============================================================
@@ -1611,6 +1666,7 @@
     hide($("auth-view"));
     show($("app-view"));
     await refresh();
+    await openTicketFromUrl();
     startRealtime();
   }
 
@@ -1634,6 +1690,15 @@
       else if (event === "SIGNED_OUT") {
         state.me = null;
         location.reload();
+      }
+    });
+
+    window.addEventListener("popstate", function () {
+      var id = ticketIdFromUrl();
+      if (id) openDetail(id, { fromUrl: true });
+      else if (activeDetailTicketId) {
+        closeModal(true);
+        activeDetailTicketId = null;
       }
     });
   }

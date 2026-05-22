@@ -406,6 +406,7 @@ code {
   padding: 16px 20px; border-bottom: 1px solid var(--border); gap: 12px;
 }
 .modal-head h2 { font-size: 1.15rem; }
+.modal-head-actions { display: flex; align-items: center; gap: 8px; }
 .modal-body { padding: 18px 20px; }
 .modal-foot {
   padding: 14px 20px; border-top: 1px solid var(--border);
