@@ -1180,19 +1180,23 @@
       if (!text) { toast("Please write what needs to be done"); return; }
       btn.disabled = true; btn.textContent = "Creating...";
       try {
+        var authUser = (await sb.auth.getUser()).data.user;
+        if (!authUser) throw new Error("Please sign in again before creating a ticket");
+        var ticketId = crypto.randomUUID();
         var ins = await sb.from("tickets").insert({
+          id: ticketId,
           title: text,
           priority: prio,
 	          ...assigneePatchFor(selectedAssigneeRecords(modal.querySelector("#nt-assignee"))),
-          created_by: state.me.id
-        }).select().single();
+          created_by: authUser.id
+        });
         if (ins.error) throw ins.error;
         await replaceTicketAssignees(
-          ins.data.id,
+          ticketId,
           selectedAssigneeRecords(modal.querySelector("#nt-assignee"))
         );
         var files = uploader.getFiles();
-        if (files.length) await uploadFiles(ins.data.id, files);
+        if (files.length) await uploadFiles(ticketId, files);
         closeModal();
         toast("Ticket created");
         await refresh();

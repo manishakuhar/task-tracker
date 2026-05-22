@@ -161,6 +161,25 @@ create trigger invitations_touch
   before update on public.invitations
   for each row execute function public.touch_updated_at();
 
+-- Browser inserts cannot create tickets on behalf of another person.
+create or replace function public.set_ticket_creator()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is not null then
+    new.created_by = auth.uid();
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists tickets_set_creator on public.tickets;
+create trigger tickets_set_creator
+  before insert on public.tickets
+  for each row execute function public.set_ticket_creator();
+
 create or replace function public.can_assign_ticket(ticket_uuid uuid)
 returns boolean
 language sql
