@@ -101,7 +101,13 @@
 
   <!-- modal + lightbox layers -->
   <div id="modal-root"></div>
-  <div id="lightbox" class="lightbox" hidden><img alt="screenshot" /></div>
+  <div id="lightbox" class="lightbox" hidden>
+    <button type="button" class="lightbox-close" aria-label="Close screenshot">×</button>
+    <button type="button" class="lightbox-nav lightbox-prev" data-lightbox-prev aria-label="Previous screenshot">‹</button>
+    <img alt="screenshot" />
+    <button type="button" class="lightbox-nav lightbox-next" data-lightbox-next aria-label="Next screenshot">›</button>
+    <div class="lightbox-count"></div>
+  </div>
   <div id="toast" class="toast" hidden></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
