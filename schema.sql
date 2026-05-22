@@ -409,7 +409,7 @@ create trigger profiles_accept_pending_assignments
   for each row execute function public.accept_pending_assignments();
 
 -- ---- Row Level Security -------------------------------------
--- Users can see only tickets they created or tickets assigned to them.
+-- Any signed-in teammate can see every ticket in this organization.
 -- Ticket creators can edit details, assignees, screenshots, and delete tickets.
 -- Ticket creators and assignees can comment and update status.
 -- Nobody who is not signed in can see anything.
@@ -436,8 +436,7 @@ drop policy if exists "tickets read" on public.tickets;
 drop policy if exists "tickets insert" on public.tickets;
 drop policy if exists "tickets update creator or assignee status" on public.tickets;
 drop policy if exists "tickets delete creator" on public.tickets;
-create policy "tickets read" on public.tickets for select to authenticated
-  using (public.can_act_on_ticket(id));
+create policy "tickets read" on public.tickets for select to authenticated using (true);
 create policy "tickets insert" on public.tickets for insert to authenticated with check (created_by = auth.uid());
 create policy "tickets update creator or assignee status"
   on public.tickets for update to authenticated
@@ -451,8 +450,7 @@ drop policy if exists "ticket assignees all" on public.ticket_assignees;
 drop policy if exists "ticket assignees read" on public.ticket_assignees;
 drop policy if exists "ticket assignees insert creator" on public.ticket_assignees;
 drop policy if exists "ticket assignees delete creator" on public.ticket_assignees;
-create policy "ticket assignees read" on public.ticket_assignees for select to authenticated
-  using (public.can_act_on_ticket(ticket_id));
+create policy "ticket assignees read" on public.ticket_assignees for select to authenticated using (true);
 create policy "ticket assignees insert creator"
   on public.ticket_assignees for insert to authenticated
   with check (public.can_assign_ticket(ticket_id));
@@ -468,8 +466,7 @@ create policy "ticket assignees delete creator"
 drop policy if exists "comments read"       on public.comments;
 drop policy if exists "comments insert"     on public.comments;
 drop policy if exists "comments delete own" on public.comments;
-create policy "comments read" on public.comments for select to authenticated
-  using (public.can_act_on_ticket(ticket_id));
+create policy "comments read" on public.comments for select to authenticated using (true);
 create policy "comments insert"
   on public.comments for insert to authenticated
   with check (author_id = auth.uid() and public.can_act_on_ticket(ticket_id));
@@ -479,8 +476,7 @@ drop policy if exists "attachments all" on public.attachments;
 drop policy if exists "attachments read" on public.attachments;
 drop policy if exists "attachments insert creator" on public.attachments;
 drop policy if exists "attachments delete creator" on public.attachments;
-create policy "attachments read" on public.attachments for select to authenticated
-  using (public.can_act_on_ticket(ticket_id));
+create policy "attachments read" on public.attachments for select to authenticated using (true);
 create policy "attachments insert creator"
   on public.attachments for insert to authenticated
   with check (public.can_assign_ticket(ticket_id));

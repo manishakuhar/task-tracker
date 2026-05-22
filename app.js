@@ -381,7 +381,6 @@
     if (r.error) {
       console.warn("Could not load multi-assignees; using legacy assignee fields.", r.error);
       state.tickets.forEach(function (t) { t.assignees = legacyAssignees(t); });
-      state.tickets = state.tickets.filter(canActOnTicket);
       return;
     }
     var grouped = {};
@@ -392,7 +391,6 @@
     state.tickets.forEach(function (t) {
       t.assignees = grouped[t.id] || legacyAssignees(t);
     });
-    state.tickets = state.tickets.filter(canActOnTicket);
     await correctTicketStatusesFromParts();
   }
 
