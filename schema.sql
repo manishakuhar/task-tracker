@@ -408,6 +408,62 @@ create trigger profiles_accept_pending_assignments
   after insert or update of email, full_name on public.profiles
   for each row execute function public.accept_pending_assignments();
 
+-- Public ticket links use this read-only function.
+-- It returns only the ticket whose id is in the link; normal writes still require login.
+create or replace function public.get_public_ticket(ticket_uuid uuid)
+returns jsonb
+language sql
+stable
+security definer set search_path = public
+as $$
+  select jsonb_build_object(
+    'ticket',
+      to_jsonb(t) ||
+      jsonb_build_object(
+        'comments', jsonb_build_array(jsonb_build_object(
+          'count', (select count(*) from public.comments c where c.ticket_id = t.id)
+        )),
+        'attachments', coalesce((
+          select jsonb_agg(to_jsonb(a) order by a.created_at)
+          from public.attachments a
+          where a.ticket_id = t.id
+        ), '[]'::jsonb)
+      ),
+    'assignees', coalesce((
+      select jsonb_agg(to_jsonb(ta) order by ta.created_at)
+      from public.ticket_assignees ta
+      where ta.ticket_id = t.id
+    ), '[]'::jsonb),
+    'comments', coalesce((
+      select jsonb_agg(to_jsonb(c) order by c.created_at)
+      from public.comments c
+      where c.ticket_id = t.id
+    ), '[]'::jsonb),
+    'profiles', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', p.id,
+        'full_name', p.full_name
+      ))
+      from public.profiles p
+      where p.id in (
+        select t.created_by
+        union
+        select ta.assignee_id
+        from public.ticket_assignees ta
+        where ta.ticket_id = t.id
+        union
+        select c.author_id
+        from public.comments c
+        where c.ticket_id = t.id
+      )
+    ), '[]'::jsonb)
+  )
+  from public.tickets t
+  where t.id = ticket_uuid;
+$$;
+
+grant execute on function public.get_public_ticket(uuid) to anon, authenticated;
+
 -- ---- Row Level Security -------------------------------------
 -- Any signed-in teammate can see every ticket in this organization.
 -- Ticket creators can edit details, assignees, screenshots, and delete tickets.

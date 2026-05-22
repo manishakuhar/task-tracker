@@ -21,7 +21,8 @@
     profiles: [],
     invitations: [],
     tickets: [],
-    filters: { search: "", scope: "all", assignee: "all", status: "open", priority: "all" },
+    filters: { search: "", scope: "all", assignee: "all", status: "open", priority: "all", ticket: null },
+    publicMode: false,
     signupMode: false
   };
   var activeUploader = null;
@@ -109,21 +110,25 @@
     return a.assignee_id || a.assignee_email || "";
   }
   function isMine(t) {
+    if (!state.me) return false;
     return ticketAssignees(t).some(function (a) {
       return a.assignee_id === state.me.id ||
         (!!a.assignee_email && normalizeEmail(a.assignee_email) === normalizeEmail(state.me.email));
     });
   }
   function canEditTicket(t) {
+    if (!state.me) return false;
     return t.created_by === state.me.id;
   }
   function canActOnTicket(t) {
     return canEditTicket(t) || isMine(t);
   }
   function creatorName(t) {
+    if (!state.me) return nameOf(t.created_by);
     return t.created_by === state.me.id ? "You" : nameOf(t.created_by);
   }
   function myAssigneeRow(t) {
+    if (!state.me) return null;
     return ticketAssignees(t).find(function (a) {
       return a.assignee_id === state.me.id ||
         (!!a.assignee_email && normalizeEmail(a.assignee_email) === normalizeEmail(state.me.email));
@@ -180,7 +185,10 @@
   function closeModal(keepTicketUrl) {
     $("modal-root").innerHTML = "";
     activeUploader = null;
-    if (activeDetailTicketId && !keepTicketUrl) clearTicketUrl();
+    if (activeDetailTicketId && !keepTicketUrl) {
+      clearTicketUrl();
+      if (state.tickets.length) renderBoard();
+    }
     if (!keepTicketUrl) activeDetailTicketId = null;
   }
 
@@ -201,6 +209,7 @@
   }
   function clearTicketUrl() {
     var url = new URL(location.href);
+    state.filters.ticket = null;
     if (!url.searchParams.has("ticket")) return;
     url.searchParams.delete("ticket");
     history.pushState({}, "", url);
@@ -216,8 +225,7 @@
   }
   async function openTicketFromUrl() {
     var id = ticketIdFromUrl();
-    if (!id || !state.me) return;
-    await openDetail(id, { fromUrl: true });
+    state.filters.ticket = id || null;
   }
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
@@ -458,6 +466,31 @@
     await loadTicketAssignees();
   }
 
+  async function loadPublicTicket(id) {
+    var r = await sb.rpc("get_public_ticket", { ticket_uuid: id });
+    if (r.error) {
+      console.error(r.error);
+      toast("Ticket link could not be opened");
+      return false;
+    }
+    var payload = r.data || {};
+    if (!payload.ticket) {
+      toast("Ticket not found");
+      return false;
+    }
+    state.publicMode = true;
+    state.me = null;
+    state.profiles = payload.profiles || [];
+    state.invitations = [];
+    state.filters = { search: "", scope: "all", assignee: "all", status: "all", priority: "all", ticket: id };
+    var ticket = payload.ticket;
+    ticket.assignees = payload.assignees || [];
+    ticket.attachments = ticket.attachments || [];
+    ticket.publicComments = payload.comments || [];
+    state.tickets = [ticket];
+    return true;
+  }
+
   async function loadTicketAssignees() {
     if (!state.tickets.length) return;
     var ids = state.tickets.map(function (t) { return t.id; });
@@ -506,6 +539,7 @@
   function filteredTickets() {
     var f = state.filters, q = f.search.toLowerCase();
     var list = state.tickets.filter(function (t) {
+      if (f.ticket && t.id !== f.ticket) return false;
       if (f.scope === "created" && !canEditTicket(t)) return false;
       if (f.scope === "assigned" && !isMine(t)) return false;
       if (f.status !== "all" && t.status !== f.status) return false;
@@ -551,7 +585,7 @@
     var opts = '<option value="all">All assignees</option>' +
       '<option value="unassigned">Unassigned</option>';
     state.profiles.forEach(function (p) {
-      var label = p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
+      var label = state.me && p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
       opts += '<option value="' + p.id + '">' + esc(label) + "</option>";
     });
     state.invitations.forEach(function (i) {
@@ -1062,7 +1096,7 @@
     if (!Array.isArray(selected)) selected = selected ? [selected] : [];
     var html = '<div class="assignee-picker' + (disabled ? " disabled" : "") + '">';
     state.profiles.forEach(function (p) {
-      var label = p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
+      var label = state.me && p.id === state.me.id ? p.full_name + " (me)" : p.full_name;
       html += '<label class="assignee-option">' +
         '<input type="checkbox" value="' + p.id + '"' +
         (selected.indexOf(p.id) !== -1 ? " checked" : "") +
@@ -1313,10 +1347,14 @@
     }
     activeDetailTicketId = id;
     if (!options.fromUrl) setTicketUrl(id);
-    var cr = await sb.from("comments")
-      .select("id,body,created_at,author_id")
-      .eq("ticket_id", id).order("created_at");
-    renderDetail(t, cr.data || []);
+    var comments = t.publicComments || [];
+    if (!state.publicMode) {
+      var cr = await sb.from("comments")
+        .select("id,body,created_at,author_id")
+        .eq("ticket_id", id).order("created_at");
+      comments = cr.data || [];
+    }
+    renderDetail(t, comments);
   }
 
   function renderDetail(t, comments) {
@@ -1354,7 +1392,7 @@
 	      }).join("") + "</div>";
 
     var commentsHtml = comments.map(function (c) {
-      var canDel = c.author_id === state.me.id;
+      var canDel = state.me && c.author_id === state.me.id;
       return '<div class="comment">' +
         avatar(c.author_id, nameOf(c.author_id)) +
         '<div class="comment-bubble">' +
@@ -1596,6 +1634,7 @@
   async function refresh() {
     await loadProfiles();
     await Promise.all([loadInvitations(), loadTickets()]);
+    await openTicketFromUrl();
     renderAssigneeFilter();
     renderBoard();
   }
@@ -1661,13 +1700,32 @@
      STARTUP
      ============================================================ */
   async function enterApp(user) {
+    state.publicMode = false;
     await loadMe(user);
     $("current-user").textContent = "Hi, " + state.me.full_name;
+    $("invite-person-btn").hidden = false;
+    $("new-ticket-btn").hidden = false;
+    $("signout-btn").hidden = false;
     hide($("auth-view"));
     show($("app-view"));
     await refresh();
-    await openTicketFromUrl();
     startRealtime();
+  }
+
+  async function enterPublicTicket(id) {
+    var ok = await loadPublicTicket(id);
+    if (!ok) {
+      showAuth();
+      return;
+    }
+    $("current-user").textContent = "Public ticket link";
+    $("invite-person-btn").hidden = true;
+    $("new-ticket-btn").hidden = true;
+    $("signout-btn").hidden = true;
+    hide($("auth-view"));
+    show($("app-view"));
+    renderAssigneeFilter();
+    renderBoard();
   }
 
   function showAuth() {
@@ -1683,6 +1741,7 @@
     }
     var sess = await sb.auth.getSession();
     if (sess.data.session) await enterApp(sess.data.session.user);
+    else if (ticketIdFromUrl()) await enterPublicTicket(ticketIdFromUrl());
     else showAuth();
 
     sb.auth.onAuthStateChange(function (event, session) {
@@ -1693,12 +1752,24 @@
       }
     });
 
-    window.addEventListener("popstate", function () {
+    window.addEventListener("popstate", async function () {
       var id = ticketIdFromUrl();
-      if (id) openDetail(id, { fromUrl: true });
-      else if (activeDetailTicketId) {
+      if (id && state.publicMode) {
+        await enterPublicTicket(id);
+      } else if (id) {
+        state.filters.ticket = id;
+        renderBoard();
+      } else if (activeDetailTicketId) {
         closeModal(true);
         activeDetailTicketId = null;
+        state.filters.ticket = null;
+        renderBoard();
+      } else if (state.publicMode) {
+        state.filters.ticket = null;
+        showAuth();
+      } else {
+        state.filters.ticket = null;
+        renderBoard();
       }
     });
   }
