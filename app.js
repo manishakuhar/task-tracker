@@ -619,6 +619,20 @@
       grid.appendChild(ticketCard(t));
     });
     syncScopeButtons();
+    markTruncatedCards();
+  }
+
+  function markTruncatedCards() {
+    document.querySelectorAll(".card-text").forEach(function (text) {
+      var isTruncated = text.scrollHeight > text.clientHeight + 1;
+      text.closest(".card")?.classList.toggle("has-more-text", isTruncated);
+    });
+  }
+
+  function autoGrowTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = "auto";
+    textarea.style.height = textarea.scrollHeight + "px";
   }
 
   function syncScopeButtons() {
@@ -681,7 +695,10 @@
       cover +
       '<div class="card-pad">' +
         '<div class="card-top">' + badges + "</div>" +
-        '<p class="card-text">' + esc(t.title) + "</p>" +
+        '<div class="card-text-wrap">' +
+          '<p class="card-text">' + esc(t.title) + "</p>" +
+          '<span class="read-more-cue">Read more</span>' +
+        "</div>" +
         '<div class="creator-line">Created by ' + esc(creatorName(t)) + "</div>" +
         '<div class="assignee-list">' + assigneesHtml + "</div>" +
         (summary ? '<div class="card-progress ' + (allPartsDone(t) ? "done" : "pending") + '">' + esc(summary) + "</div>" : "") +
@@ -1429,7 +1446,7 @@
       '<div class="modal-body">' +
         '<div style="margin-bottom:12px">' + statusPill + " " + reopenBadge + "</div>" +
         '<div class="section-label">Task</div>' +
-        '<textarea id="d-text" rows="3" class="box"' + (canEdit ? "" : " readonly") + ">" + esc(t.title) + "</textarea>" +
+        '<textarea id="d-text" rows="3" class="box detail-task-box"' + (canEdit ? "" : " readonly") + ">" + esc(t.title) + "</textarea>" +
         '<div class="meta-grid" style="margin-top:14px">' +
 	          '<div class="meta-item"><span>Priority</span>' +
 	            '<select id="d-priority"' + (canEdit ? "" : " disabled") + ">" + priorityOptions(t.priority) + "</select></div>" +
@@ -1488,6 +1505,7 @@
         copyTicketLink(t.id);
       });
     }
+    autoGrowTextarea(modal.querySelector("#d-text"));
 
     // enlarge screenshots
     modal.querySelector(".shot-grid").addEventListener("click", function (e) {
@@ -1534,7 +1552,10 @@
     }
 
     if (canEdit) {
-      modal.querySelector("#d-text").addEventListener("input", markDirty);
+      modal.querySelector("#d-text").addEventListener("input", function () {
+        autoGrowTextarea(this);
+        markDirty();
+      });
       modal.querySelector("#d-priority").addEventListener("change", markDirty);
       modal.querySelector("#d-assignee").addEventListener("change", markDirty);
 
