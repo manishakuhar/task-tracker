@@ -21,7 +21,7 @@
     profiles: [],
     invitations: [],
     tickets: [],
-    filters: { search: "", assignee: "all", status: "open", priority: "all" },
+    filters: { search: "", scope: "all", assignee: "all", status: "open", priority: "all" },
     signupMode: false
   };
   var activeUploader = null;
@@ -118,6 +118,9 @@
   }
   function canActOnTicket(t) {
     return canEditTicket(t) || isMine(t);
+  }
+  function creatorName(t) {
+    return t.created_by === state.me.id ? "You" : nameOf(t.created_by);
   }
   function myAssigneeRow(t) {
     return ticketAssignees(t).find(function (a) {
@@ -419,6 +422,8 @@
   function filteredTickets() {
     var f = state.filters, q = f.search.toLowerCase();
     var list = state.tickets.filter(function (t) {
+      if (f.scope === "created" && !canEditTicket(t)) return false;
+      if (f.scope === "assigned" && !isMine(t)) return false;
       if (f.status !== "all" && t.status !== f.status) return false;
       if (f.priority !== "all" && t.priority !== f.priority) return false;
       if (f.assignee === "unassigned") {
@@ -442,10 +447,12 @@
   function renderStats() {
     var t = state.tickets;
     var open = t.filter(function (x) { return x.status === "open"; });
+    var createdOpen = open.filter(canEditTicket);
     var mineOpen = open.filter(isMine);
     var urgentOpen = open.filter(function (x) { return x.priority === "urgent"; });
     $("stats").innerHTML =
       stat(open.length, "open") +
+      stat(createdOpen.length, "created by me") +
       stat(mineOpen.length, "assigned to me") +
       stat(urgentOpen.length, "urgent open") +
       stat(t.filter(function (x) { return x.status === "done"; }).length, "done");
@@ -493,9 +500,14 @@
     list.forEach(function (t) {
       grid.appendChild(ticketCard(t));
     });
-    // sync the My-tickets chip
-    $("my-tickets-btn").classList.toggle(
-      "chip-active", state.filters.assignee === state.me.id);
+    syncScopeButtons();
+  }
+
+  function syncScopeButtons() {
+    ["scope-all-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+      var btn = $(id);
+      if (btn) btn.classList.toggle("chip-active", btn.dataset.scope === state.filters.scope);
+    });
   }
 
   function ticketCard(t) {
@@ -551,6 +563,7 @@
       '<div class="card-pad">' +
         '<div class="card-top">' + badges + "</div>" +
         '<p class="card-text">' + esc(t.title) + "</p>" +
+        '<div class="creator-line">Created by ' + esc(creatorName(t)) + "</div>" +
         '<div class="assignee-list">' + assigneesHtml + "</div>" +
         (summary ? '<div class="card-progress ' + (allPartsDone(t) ? "done" : "pending") + '">' + esc(summary) + "</div>" : "") +
         '<div class="card-meta">' +
@@ -1526,11 +1539,11 @@
     state.filters.priority = this.value;
     renderBoard();
   });
-  $("my-tickets-btn").addEventListener("click", function () {
-    var on = state.filters.assignee === state.me.id;
-    state.filters.assignee = on ? "all" : state.me.id;
-    $("filter-assignee").value = state.filters.assignee;
-    renderBoard();
+  ["scope-all-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+    $(id).addEventListener("click", function () {
+      state.filters.scope = this.dataset.scope;
+      renderBoard();
+    });
   });
 
   /* ============================================================

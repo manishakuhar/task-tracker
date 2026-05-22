@@ -265,7 +265,7 @@ code {
 .card-pad {
   padding: 13px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) minmax(30px, auto) auto minmax(22px, auto) 38px;
+  grid-template-rows: auto minmax(0, 1fr) 18px minmax(30px, auto) auto minmax(22px, auto) 38px;
   gap: 9px;
   min-width: 0;
   height: 100%;
@@ -277,6 +277,15 @@ code {
   white-space: pre-wrap; word-break: break-word;
   display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical;
   overflow: hidden;
+}
+.creator-line {
+  min-width: 0;
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .assignee-list {
   display: flex;
