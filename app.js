@@ -699,12 +699,18 @@
           '<p class="card-text">' + esc(t.title) + "</p>" +
           '<span class="read-more-cue">Read more</span>' +
         "</div>" +
-        '<div class="creator-line">Created by ' + esc(creatorName(t)) + "</div>" +
-        '<div class="assignee-list">' + assigneesHtml + "</div>" +
+        '<div class="card-context">' +
+          '<span class="creator-line">Created by ' + esc(creatorName(t)) + "</span>" +
+          '<span>' + ago(t.created_at) + "</span>" +
+        "</div>" +
+        '<div class="card-assignees">' +
+          '<span class="card-mini-label">Assignees</span>' +
+          '<div class="assignee-list">' + assigneesHtml + "</div>" +
+        "</div>" +
         (summary ? '<div class="card-progress ' + (allPartsDone(t) ? "done" : "pending") + '">' + esc(summary) + "</div>" : "") +
         '<div class="card-meta">' +
           '<span>💬 ' + commentLabel(cc) + "</span>" +
-          '<span>' + ago(t.created_at) + "</span>" +
+          '<span>' + (atts.length ? atts.length + " screenshot" + (atts.length === 1 ? "" : "s") : "No screenshots") + "</span>" +
         "</div>" +
         '<div class="card-actions">' + actionBtn + "</div>" +
       "</div>";
