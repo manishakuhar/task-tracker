@@ -239,45 +239,36 @@ code {
   width: 100%;
 }
 .card {
-  background: var(--surface);
+  background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
   border: 1px solid var(--border);
   border-left: 0;
-  border-radius: 14px;
+  border-radius: 16px;
   cursor: pointer;
   overflow: hidden;
   display: flex; flex-direction: column;
   transition: box-shadow .12s, transform .06s, border-color .12s;
   height: 404px;
-  box-shadow: var(--shadow-soft);
+  box-shadow: 0 1px 2px rgba(21, 25, 36, .04), 0 8px 24px rgba(21, 25, 36, .055);
   position: relative;
 }
 .card.has-shot {
   display: grid;
-  grid-template-columns: minmax(156px, 40%) 1fr;
+  grid-template-columns: minmax(164px, 41%) 1fr;
 }
-.card:hover { box-shadow: 0 2px 5px rgba(21,25,36,.08), 0 16px 44px rgba(21,25,36,.10); transform: translateY(-1px); border-color: var(--border-strong); }
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--low);
-  z-index: 2;
-}
-.card.prio-low::before    { background: var(--low); }
-.card.prio-medium::before { background: var(--medium); }
-.card.prio-high::before   { background: var(--high); }
-.card.prio-urgent::before { background: var(--urgent); }
+.card:hover { box-shadow: 0 2px 6px rgba(21,25,36,.07), 0 18px 46px rgba(21,25,36,.105); transform: translateY(-2px); border-color: #d9dde8; }
 .card.status-done { opacity: .74; }
 
 .card-cover {
   position: relative;
-  background: #11131a;
+  background: #f0f2f7;
   display: flex; align-items: center; justify-content: center;
   min-height: 0;
-  height: 100%;
+  height: calc(100% - 24px);
+  margin: 12px;
   overflow: hidden;
-  border-right: 1px solid var(--border);
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.45);
 }
 .card-cover::after {
   content: "";
@@ -293,16 +284,17 @@ code {
   object-position: top center;
   display: block;
   cursor: zoom-in;
+  border-radius: inherit;
 }
 .more-count {
-  position: absolute; bottom: 8px; right: 8px;
+  position: absolute; bottom: 10px; right: 10px;
   background: rgba(18, 21, 30, .82); color: #fff;
   font-size: .72rem; font-weight: 700;
   padding: 3px 9px; border-radius: 999px;
   z-index: 1;
 }
 .card-pad {
-  padding: 15px;
+  padding: 16px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto auto auto minmax(22px, auto) 38px;
   gap: 10px;
