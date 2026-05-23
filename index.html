@@ -72,31 +72,33 @@
       </div>
     </header>
 
-    <div class="toolbar">
-      <input type="search" id="search-input" class="search" placeholder="Search tickets..." />
-      <div class="filters">
-        <button id="scope-all-btn" class="chip chip-active" type="button" data-scope="all">All visible</button>
-        <button id="created-by-me-btn" class="chip" type="button" data-scope="created">Created by me</button>
-        <button id="assigned-to-me-btn" class="chip" type="button" data-scope="assigned">Assigned to me</button>
-        <select id="filter-assignee" class="select" aria-label="Filter by assignee"></select>
-        <select id="filter-status" class="select" aria-label="Filter by status">
-          <option value="open">Open</option>
-          <option value="done">Done</option>
-          <option value="all">All statuses</option>
-        </select>
-        <select id="filter-priority" class="select" aria-label="Filter by priority">
-          <option value="all">All priorities</option>
-          <option value="urgent">Urgent</option>
-          <option value="high">High</option>
-          <option value="medium">Medium</option>
-          <option value="low">Low</option>
-        </select>
+    <div class="board-shell">
+      <div class="toolbar">
+        <input type="search" id="search-input" class="search" placeholder="Search tickets..." />
+        <div class="filters">
+          <button id="scope-all-btn" class="chip chip-active" type="button" data-scope="all">All visible</button>
+          <button id="created-by-me-btn" class="chip" type="button" data-scope="created">Created by me</button>
+          <button id="assigned-to-me-btn" class="chip" type="button" data-scope="assigned">Assigned to me</button>
+          <select id="filter-assignee" class="select" aria-label="Filter by assignee"></select>
+          <select id="filter-status" class="select" aria-label="Filter by status">
+            <option value="open">Open</option>
+            <option value="done">Done</option>
+            <option value="all">All statuses</option>
+          </select>
+          <select id="filter-priority" class="select" aria-label="Filter by priority">
+            <option value="all">All priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
       </div>
-    </div>
 
-    <div id="stats" class="stats"></div>
-    <main id="ticket-grid" class="ticket-grid"></main>
-    <div id="empty-state" class="empty-state" hidden></div>
+      <div id="stats" class="stats"></div>
+      <main id="ticket-grid" class="ticket-grid"></main>
+      <div id="empty-state" class="empty-state" hidden></div>
+    </div>
   </section>
 
   <!-- modal + lightbox layers -->
