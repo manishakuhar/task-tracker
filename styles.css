@@ -253,7 +253,7 @@ code {
 }
 .card.has-shot {
   display: grid;
-  grid-template-columns: minmax(164px, 41%) 1fr;
+  grid-template-columns: minmax(190px, 46%) 1fr;
 }
 .card:hover { box-shadow: 0 2px 6px rgba(21,25,36,.07), 0 18px 46px rgba(21,25,36,.105); transform: translateY(-2px); border-color: #d9dde8; }
 .card.status-done { opacity: .74; }
@@ -280,7 +280,7 @@ code {
 .card-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   object-position: top center;
   display: block;
   cursor: zoom-in;
@@ -741,7 +741,7 @@ code {
   .ticket-grid { grid-template-columns: 1fr; }
   .card { height: 386px; }
   .card.has-shot {
-    grid-template-columns: minmax(128px, 40%) 1fr;
+    grid-template-columns: minmax(154px, 46%) 1fr;
   }
   .card-text { -webkit-line-clamp: 6; }
   .card-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
