@@ -395,6 +395,10 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bucket-time {
+  color: var(--muted);
+  font-weight: 650;
+}
 .assignee-pill {
   display: inline-flex;
   align-items: center;

@@ -21,7 +21,7 @@
     profiles: [],
     invitations: [],
     tickets: [],
-    filters: { search: "", scope: "all", assignee: "all", status: "open", priority: "all", ticket: null },
+    filters: { search: "", scope: "all", assignee: "all", status: "open", priority: "all", sort: "newest", ticket: null },
     publicMode: false,
     signupMode: false
   };
@@ -64,6 +64,22 @@
     if (s < 86400) return Math.floor(s / 3600) + "h ago";
     if (s < 604800) return Math.floor(s / 86400) + "d ago";
     return d.toLocaleDateString();
+  }
+  function exactDateTime(iso) {
+    if (!iso) return "";
+    return new Date(iso).toLocaleString([], {
+      day: "2-digit",
+      month: "short",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+  function maxBucketCreatedAt(t) {
+    var buckets = ticketBuckets(t);
+    if (!buckets.length) return 0;
+    return Math.max.apply(null, buckets.map(function (b) {
+      return new Date(b.created_at).getTime();
+    }));
   }
   function nameOf(id) {
     if (!id) return "Unassigned";
@@ -138,9 +154,6 @@
   }
   function canUseBucket(t) {
     return !!state.me && !state.publicMode && t.status === "open" && !!myAssigneeRow(t);
-  }
-  function bucketNames(t) {
-    return ticketBuckets(t).map(function (b) { return nameOf(b.user_id); });
   }
   function creatorName(t) {
     if (!state.me) return nameOf(t.created_by);
@@ -501,7 +514,7 @@
     state.me = null;
     state.profiles = payload.profiles || [];
     state.invitations = [];
-    state.filters = { search: "", scope: "all", assignee: "all", status: "all", priority: "all", ticket: id };
+    state.filters = { search: "", scope: "all", assignee: "all", status: "all", priority: "all", sort: "newest", ticket: id };
     var ticket = payload.ticket;
     ticket.assignees = payload.assignees || [];
     ticket.attachments = ticket.attachments || [];
@@ -598,7 +611,12 @@
     });
     list.sort(function (a, b) {
       if (a.status !== b.status) return a.status === "open" ? -1 : 1;
-      if (PRIO_RANK[a.priority] !== PRIO_RANK[b.priority])
+      if (f.sort === "oldest") return new Date(a.created_at) - new Date(b.created_at);
+      if (f.sort === "updated") return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at);
+      if (f.sort === "bucket") return maxBucketCreatedAt(b) - maxBucketCreatedAt(a);
+      if (f.sort === "priority" && PRIO_RANK[a.priority] !== PRIO_RANK[b.priority])
+        return PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
+      if (f.sort !== "priority" && PRIO_RANK[a.priority] !== PRIO_RANK[b.priority] && f.status === "open")
         return PRIO_RANK[a.priority] - PRIO_RANK[b.priority];
       return new Date(b.created_at) - new Date(a.created_at);
     });
@@ -716,8 +734,9 @@
     var buckets = ticketBuckets(t);
     var bucketHtml = buckets.length
       ? '<div class="bucket-line"><span class="card-mini-label">Today bucket</span><div class="bucket-list">' +
-          bucketNames(t).map(function (name) {
-            return '<span class="bucket-pill">' + esc(name) + '</span>';
+          buckets.map(function (b) {
+            return '<span class="bucket-pill">' + esc(nameOf(b.user_id)) +
+              '<span class="bucket-time"> · ' + esc(ago(b.created_at)) + '</span></span>';
           }).join("") +
         "</div></div>"
       : "";
@@ -759,7 +778,7 @@
         "</div>" +
         '<div class="card-context">' +
           '<span class="creator-line">Created by ' + esc(creatorName(t)) + "</span>" +
-          '<span>' + ago(t.created_at) + "</span>" +
+          '<span title="' + esc(new Date(t.created_at).toLocaleString()) + '">Created ' + esc(exactDateTime(t.created_at)) + "</span>" +
         "</div>" +
         '<div class="card-assignees">' +
           '<span class="card-mini-label">Assignees</span>' +
@@ -1805,12 +1824,18 @@
     state.filters.priority = this.value;
     renderBoard();
   });
+  $("sort-tickets").addEventListener("change", function () {
+    state.filters.sort = this.value;
+    renderBoard();
+  });
   ["scope-all-btn", "today-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
     $(id).addEventListener("click", function () {
       state.filters.scope = this.dataset.scope;
       if (state.filters.scope === "bucket") {
         state.filters.status = "all";
+        state.filters.sort = "bucket";
         $("filter-status").value = "all";
+        $("sort-tickets").value = "bucket";
       }
       renderBoard();
     });
