@@ -70,6 +70,13 @@
     var p = state.profiles.find(function (x) { return x.id === id; });
     return p ? p.full_name : "Someone";
   }
+  function todayKey() {
+    var d = new Date();
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return y + "-" + m + "-" + day;
+  }
   function normalizeEmail(email) {
     return (email || "").trim().toLowerCase();
   }
@@ -122,6 +129,18 @@
   }
   function canActOnTicket(t) {
     return canEditTicket(t) || isMine(t);
+  }
+  function ticketBuckets(t) {
+    return t.today_buckets || [];
+  }
+  function isInMyBucket(t) {
+    return !!state.me && ticketBuckets(t).some(function (b) { return b.user_id === state.me.id; });
+  }
+  function canUseBucket(t) {
+    return !!state.me && !state.publicMode && t.status === "open" && !!myAssigneeRow(t);
+  }
+  function bucketNames(t) {
+    return ticketBuckets(t).map(function (b) { return nameOf(b.user_id); });
   }
   function creatorName(t) {
     if (!state.me) return nameOf(t.created_by);
@@ -511,6 +530,29 @@
       t.assignees = grouped[t.id] || legacyAssignees(t);
     });
     await correctTicketStatusesFromParts();
+    await loadTodayBuckets();
+  }
+
+  async function loadTodayBuckets() {
+    state.tickets.forEach(function (t) { t.today_buckets = []; });
+    if (!state.me || !state.tickets.length) return;
+    var ids = state.tickets.map(function (t) { return t.id; });
+    var r = await sb.from("today_buckets")
+      .select("id,ticket_id,user_id,bucket_date,created_at")
+      .eq("bucket_date", todayKey())
+      .in("ticket_id", ids);
+    if (r.error) {
+      console.warn("Could not load today buckets.", r.error);
+      return;
+    }
+    var grouped = {};
+    (r.data || []).forEach(function (b) {
+      if (!grouped[b.ticket_id]) grouped[b.ticket_id] = [];
+      grouped[b.ticket_id].push(b);
+    });
+    state.tickets.forEach(function (t) {
+      t.today_buckets = grouped[t.id] || [];
+    });
   }
 
   async function correctTicketStatusesFromParts() {
@@ -542,6 +584,7 @@
       if (f.ticket && t.id !== f.ticket) return false;
       if (f.scope === "created" && !canEditTicket(t)) return false;
       if (f.scope === "assigned" && !isMine(t)) return false;
+      if (f.scope === "bucket" && !ticketBuckets(t).length) return false;
       if (f.status !== "all" && t.status !== f.status) return false;
       if (f.priority !== "all" && t.priority !== f.priority) return false;
       if (f.assignee === "unassigned") {
@@ -568,10 +611,12 @@
     var createdOpen = open.filter(canEditTicket);
     var mineOpen = open.filter(isMine);
     var urgentOpen = open.filter(function (x) { return x.priority === "urgent"; });
+    var bucketed = t.filter(function (x) { return ticketBuckets(x).length; });
     $("stats").innerHTML =
       stat(open.length, "open") +
       stat(createdOpen.length, "created by me") +
       stat(mineOpen.length, "assigned to me") +
+      stat(bucketed.length, "in today bucket") +
       stat(urgentOpen.length, "urgent open") +
       stat(t.filter(function (x) { return x.status === "done"; }).length, "done");
   }
@@ -636,7 +681,7 @@
   }
 
   function syncScopeButtons() {
-    ["scope-all-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+    ["scope-all-btn", "today-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
       var btn = $(id);
       if (btn) btn.classList.toggle("chip-active", btn.dataset.scope === state.filters.scope);
     });
@@ -668,6 +713,14 @@
 
     var cc = commentCount(t);
     var assignees = ticketAssignees(t);
+    var buckets = ticketBuckets(t);
+    var bucketHtml = buckets.length
+      ? '<div class="bucket-line"><span class="card-mini-label">Today bucket</span><div class="bucket-list">' +
+          bucketNames(t).map(function (name) {
+            return '<span class="bucket-pill">' + esc(name) + '</span>';
+          }).join("") +
+        "</div></div>"
+      : "";
     var assigneesHtml = assignees.length
       ? assignees.map(function (a) {
           return '<span class="assignee-pill">' +
@@ -678,16 +731,21 @@
         }).join("")
       : '<span class="assignee-pill">' + avatar("", "Unassigned") + "<span>Unassigned</span></span>";
     var myPart = myAssigneeRow(t);
-    var actionBtn = "";
+    var actionBtns = [];
+    if (canUseBucket(t)) {
+      actionBtns.push(isInMyBucket(t)
+        ? '<button class="btn btn-ghost btn-sm" data-act="bucket-remove">Remove from today</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="bucket-add">Add to today</button>');
+    }
     if (myPart && t.status === "open") {
-      actionBtn = assigneePartComplete(myPart)
+      actionBtns.push(assigneePartComplete(myPart)
         ? '<button class="btn btn-ghost btn-sm" data-act="part-open">Reopen</button>'
-        : '<button class="btn btn-ghost btn-sm" data-act="part-done">Mark done</button>';
+        : '<button class="btn btn-ghost btn-sm" data-act="part-done">Mark done</button>');
     } else if (canEditTicket(t)) {
       if (t.status === "open" && (!ticketAssignees(t).length || allPartsDone(t))) {
-        actionBtn = '<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>';
+        actionBtns.push('<button class="btn btn-ghost btn-sm" data-act="done">Mark done</button>');
       } else if (t.status === "done") {
-        actionBtn = '<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>';
+        actionBtns.push('<button class="btn btn-ghost btn-sm" data-act="reopen">Reopen</button>');
       }
     }
 
@@ -707,12 +765,13 @@
           '<span class="card-mini-label">Assignees</span>' +
           '<div class="assignee-list">' + assigneesHtml + "</div>" +
         "</div>" +
+        bucketHtml +
         (summary ? '<div class="card-progress ' + (allPartsDone(t) ? "done" : "pending") + '">' + esc(summary) + "</div>" : "") +
         '<div class="card-meta">' +
           '<span>💬 ' + commentLabel(cc) + "</span>" +
           '<span>' + (atts.length ? atts.length + " screenshot" + (atts.length === 1 ? "" : "s") : "No screenshots") + "</span>" +
         "</div>" +
-        '<div class="card-actions">' + actionBtn + "</div>" +
+        '<div class="card-actions">' + actionBtns.join("") + "</div>" +
       "</div>";
 
     card.addEventListener("click", function (e) {
@@ -727,6 +786,8 @@
         e.stopPropagation();
         if (act.dataset.act === "part-done") setMyPartStatus(t, "done");
         else if (act.dataset.act === "part-open") setMyPartStatus(t, "open");
+        else if (act.dataset.act === "bucket-add") setTodayBucket(t, true);
+        else if (act.dataset.act === "bucket-remove") setTodayBucket(t, false);
         else if (act.dataset.act === "done") setStatus(t, "done");
         else reopen(t);
         return;
@@ -756,6 +817,31 @@
     });
     if (comment.error) { toast(comment.error.message); return; }
     toast(status === "done" ? "Marked done" : "Ticket updated");
+    await refresh();
+  }
+
+  async function setTodayBucket(t, add) {
+    if (!canUseBucket(t)) {
+      toast("Only assigned users can manage their today bucket");
+      return;
+    }
+    if (add) {
+      var ins = await sb.from("today_buckets").upsert({
+        ticket_id: t.id,
+        user_id: state.me.id,
+        bucket_date: todayKey()
+      }, { onConflict: "ticket_id,user_id,bucket_date" });
+      if (ins.error) { toast(ins.error.message); return; }
+      toast("Added to today's bucket");
+    } else {
+      var del = await sb.from("today_buckets")
+        .delete()
+        .eq("ticket_id", t.id)
+        .eq("user_id", state.me.id)
+        .eq("bucket_date", todayKey());
+      if (del.error) { toast(del.error.message); return; }
+      toast("Removed from today's bucket");
+    }
     await refresh();
   }
 
@@ -1687,6 +1773,8 @@
         { event: "*", schema: "public", table: "comments" }, scheduleRefresh)
       .on("postgres_changes",
         { event: "*", schema: "public", table: "attachments" }, scheduleRefresh)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table: "today_buckets" }, scheduleRefresh)
       .subscribe();
   }
 
@@ -1717,9 +1805,13 @@
     state.filters.priority = this.value;
     renderBoard();
   });
-  ["scope-all-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+  ["scope-all-btn", "today-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
     $(id).addEventListener("click", function () {
       state.filters.scope = this.dataset.scope;
+      if (state.filters.scope === "bucket") {
+        state.filters.status = "all";
+        $("filter-status").value = "all";
+      }
       renderBoard();
     });
   });

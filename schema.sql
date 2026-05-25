@@ -117,6 +117,16 @@ create table if not exists public.attachments (
   created_at   timestamptz not null default now()
 );
 
+-- Tickets a user has picked for today's work.
+create table if not exists public.today_buckets (
+  id          uuid primary key default gen_random_uuid(),
+  ticket_id   uuid not null references public.tickets(id) on delete cascade,
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  bucket_date date not null default current_date,
+  created_at  timestamptz not null default now(),
+  unique (ticket_id, user_id, bucket_date)
+);
+
 -- ---- Triggers ------------------------------------------------
 
 -- Create a profile row automatically whenever someone signs up
@@ -226,6 +236,20 @@ as $$
     join public.tickets t on t.id = ta.ticket_id
     where ta.id = assignee_row
       and (t.created_by = auth.uid() or ta.assignee_id = auth.uid())
+  );
+$$;
+
+create or replace function public.is_ticket_assignee(ticket_uuid uuid, user_uuid uuid)
+returns boolean
+language sql
+stable
+security definer set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.ticket_assignees
+    where ticket_id = ticket_uuid
+      and assignee_id = user_uuid
   );
 $$;
 
@@ -476,6 +500,7 @@ alter table public.tickets     enable row level security;
 alter table public.ticket_assignees enable row level security;
 alter table public.comments    enable row level security;
 alter table public.attachments enable row level security;
+alter table public.today_buckets enable row level security;
 
 drop policy if exists "profiles read"        on public.profiles;
 drop policy if exists "profiles insert self" on public.profiles;
@@ -540,6 +565,28 @@ create policy "attachments delete creator"
   on public.attachments for delete to authenticated
   using (public.can_assign_ticket(ticket_id));
 
+drop policy if exists "today buckets read" on public.today_buckets;
+drop policy if exists "today buckets insert own assignee" on public.today_buckets;
+drop policy if exists "today buckets update own assignee" on public.today_buckets;
+drop policy if exists "today buckets delete own" on public.today_buckets;
+create policy "today buckets read" on public.today_buckets for select to authenticated using (true);
+create policy "today buckets insert own assignee"
+  on public.today_buckets for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and public.is_ticket_assignee(ticket_id, auth.uid())
+  );
+create policy "today buckets update own assignee"
+  on public.today_buckets for update to authenticated
+  using (user_id = auth.uid())
+  with check (
+    user_id = auth.uid()
+    and public.is_ticket_assignee(ticket_id, auth.uid())
+  );
+create policy "today buckets delete own"
+  on public.today_buckets for delete to authenticated
+  using (user_id = auth.uid());
+
 -- ---- Live updates -------------------------------------------
 -- Lets every open browser refresh the board instantly.
 
@@ -570,6 +617,12 @@ end $$;
 do $$
 begin
   alter publication supabase_realtime add table public.attachments;
+exception when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.today_buckets;
 exception when duplicate_object then null;
 end $$;
 

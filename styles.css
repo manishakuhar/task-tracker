@@ -247,7 +247,7 @@ code {
   overflow: hidden;
   display: flex; flex-direction: column;
   transition: box-shadow .12s, transform .06s, border-color .12s;
-  height: 404px;
+  height: 430px;
   box-shadow: 0 1px 2px rgba(21, 25, 36, .04), 0 8px 24px rgba(21, 25, 36, .055);
   position: relative;
 }
@@ -289,7 +289,7 @@ code {
 .card-pad {
   padding: 16px;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto minmax(22px, auto) 38px;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto minmax(22px, auto) 38px;
   gap: 10px;
   min-width: 0;
   height: 100%;
@@ -347,6 +347,15 @@ code {
   display: grid;
   gap: 5px;
 }
+.bucket-line {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  border: 1px solid #dfe4ff;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 7px 9px;
+}
 .card-mini-label {
   color: var(--muted-2);
   font-size: .67rem;
@@ -361,6 +370,30 @@ code {
   min-width: 0;
   max-height: 58px;
   overflow: hidden;
+}
+.bucket-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  max-height: 44px;
+  overflow: hidden;
+}
+.bucket-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #d4d9ff;
+  color: var(--accent-dark);
+  font-size: .75rem;
+  font-weight: 750;
+  padding: 2px 7px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .assignee-pill {
   display: inline-flex;
@@ -404,12 +437,15 @@ code {
   display: flex;
   min-height: 38px;
   align-items: flex-end;
+  gap: 7px;
 }
 .card-actions .btn {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   justify-content: center;
   background: var(--surface-subtle);
   border-color: var(--border);
+  white-space: nowrap;
 }
 .card-actions .btn:hover { background: var(--accent-soft); border-color: #cdd3ff; color: var(--accent-dark); }
 
@@ -732,7 +768,7 @@ code {
   .toolbar, .filters { gap: 7px; }
   .search { flex-basis: 100%; }
   .ticket-grid { grid-template-columns: 1fr; }
-  .card { height: 386px; }
+  .card { height: 410px; }
   .card.has-shot {
     grid-template-columns: minmax(154px, 46%) 1fr;
   }
