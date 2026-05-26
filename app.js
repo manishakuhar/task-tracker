@@ -628,7 +628,7 @@
       stat(open.length, "open") +
       stat(createdOpen.length, "created by me") +
       stat(mineOpen.length, "assigned to me") +
-      stat(bucketed.length, "in user bucket") +
+      stat(bucketed.length, "in current bucket") +
       stat(urgentOpen.length, "urgent open") +
       stat(t.filter(function (x) { return x.status === "done"; }).length, "done");
   }
@@ -727,7 +727,7 @@
     var assignees = ticketAssignees(t);
     var buckets = ticketBuckets(t);
     var bucketHtml = buckets.length
-      ? '<div class="bucket-line"><span class="card-mini-label">User bucket</span><div class="bucket-list">' +
+      ? '<div class="bucket-line"><span class="card-mini-label">Current bucket</span><div class="bucket-list">' +
           buckets.map(function (b) {
             return '<span class="bucket-pill">' + esc(nameOf(b.user_id)) +
               '<span class="bucket-time"> · ' + esc(ago(b.created_at)) + '</span></span>';
