@@ -117,7 +117,8 @@ create table if not exists public.attachments (
   created_at   timestamptz not null default now()
 );
 
--- Tickets a user has picked for today's work.
+-- Tickets a user has picked into their personal bucket.
+-- bucket_date is kept for older databases, but the app treats this as persistent.
 create table if not exists public.today_buckets (
   id          uuid primary key default gen_random_uuid(),
   ticket_id   uuid not null references public.tickets(id) on delete cascade,

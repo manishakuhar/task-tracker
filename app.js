@@ -86,13 +86,6 @@
     var p = state.profiles.find(function (x) { return x.id === id; });
     return p ? p.full_name : "Someone";
   }
-  function todayKey() {
-    var d = new Date();
-    var y = d.getFullYear();
-    var m = String(d.getMonth() + 1).padStart(2, "0");
-    var day = String(d.getDate()).padStart(2, "0");
-    return y + "-" + m + "-" + day;
-  }
   function normalizeEmail(email) {
     return (email || "").trim().toLowerCase();
   }
@@ -147,7 +140,7 @@
     return canEditTicket(t) || isMine(t);
   }
   function ticketBuckets(t) {
-    return t.today_buckets || [];
+    return t.user_buckets || [];
   }
   function isInMyBucket(t) {
     return !!state.me && ticketBuckets(t).some(function (b) { return b.user_id === state.me.id; });
@@ -543,28 +536,29 @@
       t.assignees = grouped[t.id] || legacyAssignees(t);
     });
     await correctTicketStatusesFromParts();
-    await loadTodayBuckets();
+    await loadUserBuckets();
   }
 
-  async function loadTodayBuckets() {
-    state.tickets.forEach(function (t) { t.today_buckets = []; });
+  async function loadUserBuckets() {
+    state.tickets.forEach(function (t) { t.user_buckets = []; });
     if (!state.me || !state.tickets.length) return;
     var ids = state.tickets.map(function (t) { return t.id; });
     var r = await sb.from("today_buckets")
-      .select("id,ticket_id,user_id,bucket_date,created_at")
-      .eq("bucket_date", todayKey())
+      .select("id,ticket_id,user_id,created_at")
       .in("ticket_id", ids);
     if (r.error) {
-      console.warn("Could not load today buckets.", r.error);
+      console.warn("Could not load user buckets.", r.error);
       return;
     }
     var grouped = {};
     (r.data || []).forEach(function (b) {
       if (!grouped[b.ticket_id]) grouped[b.ticket_id] = [];
-      grouped[b.ticket_id].push(b);
+      if (!grouped[b.ticket_id].some(function (x) { return x.user_id === b.user_id; })) {
+        grouped[b.ticket_id].push(b);
+      }
     });
     state.tickets.forEach(function (t) {
-      t.today_buckets = grouped[t.id] || [];
+      t.user_buckets = grouped[t.id] || [];
     });
   }
 
@@ -634,7 +628,7 @@
       stat(open.length, "open") +
       stat(createdOpen.length, "created by me") +
       stat(mineOpen.length, "assigned to me") +
-      stat(bucketed.length, "in today bucket") +
+      stat(bucketed.length, "in user bucket") +
       stat(urgentOpen.length, "urgent open") +
       stat(t.filter(function (x) { return x.status === "done"; }).length, "done");
   }
@@ -699,7 +693,7 @@
   }
 
   function syncScopeButtons() {
-    ["scope-all-btn", "today-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+    ["scope-all-btn", "user-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
       var btn = $(id);
       if (btn) btn.classList.toggle("chip-active", btn.dataset.scope === state.filters.scope);
     });
@@ -733,7 +727,7 @@
     var assignees = ticketAssignees(t);
     var buckets = ticketBuckets(t);
     var bucketHtml = buckets.length
-      ? '<div class="bucket-line"><span class="card-mini-label">Today bucket</span><div class="bucket-list">' +
+      ? '<div class="bucket-line"><span class="card-mini-label">User bucket</span><div class="bucket-list">' +
           buckets.map(function (b) {
             return '<span class="bucket-pill">' + esc(nameOf(b.user_id)) +
               '<span class="bucket-time"> · ' + esc(ago(b.created_at)) + '</span></span>';
@@ -753,8 +747,8 @@
     var actionBtns = [];
     if (canUseBucket(t)) {
       actionBtns.push(isInMyBucket(t)
-        ? '<button class="btn btn-ghost btn-sm" data-act="bucket-remove">Remove from today</button>'
-        : '<button class="btn btn-ghost btn-sm" data-act="bucket-add">Add to today</button>');
+        ? '<button class="btn btn-ghost btn-sm" data-act="bucket-remove">Remove bucket</button>'
+        : '<button class="btn btn-ghost btn-sm" data-act="bucket-add">Add to bucket</button>');
     }
     if (myPart && t.status === "open") {
       actionBtns.push(assigneePartComplete(myPart)
@@ -805,8 +799,8 @@
         e.stopPropagation();
         if (act.dataset.act === "part-done") setMyPartStatus(t, "done");
         else if (act.dataset.act === "part-open") setMyPartStatus(t, "open");
-        else if (act.dataset.act === "bucket-add") setTodayBucket(t, true);
-        else if (act.dataset.act === "bucket-remove") setTodayBucket(t, false);
+        else if (act.dataset.act === "bucket-add") setUserBucket(t, true);
+        else if (act.dataset.act === "bucket-remove") setUserBucket(t, false);
         else if (act.dataset.act === "done") setStatus(t, "done");
         else reopen(t);
         return;
@@ -839,27 +833,36 @@
     await refresh();
   }
 
-  async function setTodayBucket(t, add) {
+  async function setUserBucket(t, add) {
     if (!canUseBucket(t)) {
-      toast("Only assigned users can manage their today bucket");
+      toast("Only assigned users can manage their bucket");
       return;
     }
     if (add) {
-      var ins = await sb.from("today_buckets").upsert({
+      var existing = await sb.from("today_buckets")
+        .select("id")
+        .eq("ticket_id", t.id)
+        .eq("user_id", state.me.id)
+        .limit(1);
+      if (existing.error) { toast(existing.error.message); return; }
+      if (existing.data && existing.data.length) {
+        toast("Already in bucket");
+        await refresh();
+        return;
+      }
+      var ins = await sb.from("today_buckets").insert({
         ticket_id: t.id,
-        user_id: state.me.id,
-        bucket_date: todayKey()
-      }, { onConflict: "ticket_id,user_id,bucket_date" });
+        user_id: state.me.id
+      });
       if (ins.error) { toast(ins.error.message); return; }
-      toast("Added to today's bucket");
+      toast("Added to bucket");
     } else {
       var del = await sb.from("today_buckets")
         .delete()
         .eq("ticket_id", t.id)
-        .eq("user_id", state.me.id)
-        .eq("bucket_date", todayKey());
+        .eq("user_id", state.me.id);
       if (del.error) { toast(del.error.message); return; }
-      toast("Removed from today's bucket");
+      toast("Removed from bucket");
     }
     await refresh();
   }
@@ -1828,7 +1831,7 @@
     state.filters.sort = this.value;
     renderBoard();
   });
-  ["scope-all-btn", "today-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
+  ["scope-all-btn", "user-bucket-btn", "created-by-me-btn", "assigned-to-me-btn"].forEach(function (id) {
     $(id).addEventListener("click", function () {
       state.filters.scope = this.dataset.scope;
       if (state.filters.scope === "bucket") {
