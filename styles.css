@@ -295,6 +295,9 @@ code {
   height: 100%;
   overflow: hidden;
 }
+.card.has-shot .card-pad {
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto minmax(22px, auto) 78px;
+}
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 22px; }
 .card-text-wrap {
   position: relative;
@@ -438,18 +441,22 @@ code {
   border-top: 1px solid #eef0f5;
 }
 .card-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
   min-height: 38px;
-  align-items: flex-end;
+  align-items: end;
+  align-content: end;
   gap: 7px;
 }
 .card-actions .btn {
-  flex: 1;
+  width: 100%;
   min-width: 0;
   justify-content: center;
   background: var(--surface-subtle);
   border-color: var(--border);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .card-actions .btn:hover { background: var(--accent-soft); border-color: #cdd3ff; color: var(--accent-dark); }
 
