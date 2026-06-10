@@ -252,9 +252,9 @@ code {
   position: relative;
 }
 .card.has-shot {
-  grid-column: span 2;
   display: grid;
-  grid-template-columns: minmax(220px, 38%) minmax(0, 1fr);
+  grid-template-columns: minmax(138px, 34%) minmax(0, 1fr);
+  height: 470px;
 }
 .card:hover { box-shadow: 0 2px 6px rgba(21,25,36,.07), 0 18px 46px rgba(21,25,36,.105); transform: translateY(-2px); border-color: #d9dde8; }
 .card.status-done { opacity: .74; }
@@ -297,7 +297,11 @@ code {
   overflow: hidden;
 }
 .card.has-shot .card-pad {
-  grid-template-rows: auto minmax(0, 1fr) auto auto auto auto minmax(22px, auto) 78px;
+  gap: 9px;
+  grid-template-rows: auto minmax(128px, 1fr) auto auto auto auto minmax(22px, auto) 78px;
+}
+.card.has-shot .card-text {
+  -webkit-line-clamp: 9;
 }
 .card-top { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; min-height: 22px; }
 .card-text-wrap {
@@ -773,8 +777,7 @@ code {
 /* ============ Responsive ============ */
 @media (max-width: 900px) {
   .card.has-shot {
-    grid-column: span 1;
-    grid-template-columns: minmax(180px, 42%) minmax(0, 1fr);
+    grid-template-columns: minmax(138px, 36%) minmax(0, 1fr);
   }
 }
 
@@ -789,8 +792,8 @@ code {
   .ticket-grid { grid-template-columns: 1fr; }
   .card { height: 410px; }
   .card.has-shot {
-    grid-column: span 1;
-    grid-template-columns: minmax(154px, 46%) 1fr;
+    height: 440px;
+    grid-template-columns: minmax(128px, 36%) minmax(0, 1fr);
   }
   .card-text { -webkit-line-clamp: 6; }
   .card-meta { align-items: flex-start; flex-direction: column; gap: 3px; }
